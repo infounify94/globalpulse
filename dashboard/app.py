@@ -98,7 +98,7 @@ with st.sidebar:
         "⚙️ Settings":             "settings",
         "📋 Logs":                 "logs",
     }
-    selected = st.radio("", list(pages.keys()), label_visibility="collapsed")
+    selected = st.radio("Navigation", list(pages.keys()), label_visibility="collapsed")
     page = pages[selected]
 
     st.markdown("<hr style='border-color:#30363d'>", unsafe_allow_html=True)
