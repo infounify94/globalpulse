@@ -79,6 +79,8 @@ def safe_query(sql: str, params=None) -> pd.DataFrame:
         with engine.connect() as conn:
             return pd.read_sql(text(sql), conn, params=params)
     except Exception as e:
+        import streamlit as st
+        st.error(f"Database Error: {e}")
         return pd.DataFrame()
 
 # ── Sidebar Navigation ───────────────────────────────────────────────────────
