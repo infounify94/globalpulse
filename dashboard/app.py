@@ -63,7 +63,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── DB Connection ────────────────────────────────────────────────────────────
-DB_URL = os.environ.get("GLOBALPULSE_DB_URL", "sqlite:///globalpulse_dev.db")
+if "GLOBALPULSE_DB_URL" in st.secrets:
+    DB_URL = st.secrets["GLOBALPULSE_DB_URL"]
+else:
+    DB_URL = os.environ.get("GLOBALPULSE_DB_URL", "sqlite:///globalpulse_dev.db")
 
 @st.cache_resource
 def get_engine():
