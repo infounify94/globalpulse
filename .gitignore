@@ -1,0 +1,59 @@
+# Virtual Environments
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# IDEs
+.vscode/
+.idea/
+
+# Database files
+*.db
+*.sqlite3
+*.sqlite
+*.db-shm
+*.db-wal
+
+# Large Datasets
+datasets/
+*.parquet
+*.csv
+*.zip
+
+# Reports
+reports/
+
+# Cache
+.swisseph/
+
+# === SECURITY: API Keys & Secrets (NEVER commit these) ===
+.env
+.env.local
+.env.production
+
+# === ML Model artifacts (regeneratable, large) ===
+model_store/
+*.joblib
+*.pkl
+*.pickle
+
+# === Raw cricket data (300MB — download via etl_run.py --download) ===
+data/raw/cricsheet/
+
+# === Logs ===
+*.log
+etl_errors.json
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Streamlit ===
+.streamlit/secrets.toml
+

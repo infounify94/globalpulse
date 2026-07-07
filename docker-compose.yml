@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # ── Database ──────────────────────────────────────────────
+  postgres:
+    image: ankane/pgvector:latest
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-globalpulse_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${DB_NAME:-globalpulse_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-globalpulse_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI Prediction Backend ────────────────────────────
+  api:
+    build: .
+    command: uvicorn api:app --host 0.0.0.0 --port 8000 --workers 2
+    restart: always
+    environment:
+      - GLOBALPULSE_DB_URL=postgresql://${DB_USER:-globalpulse_user}:${DB_PASSWORD:-changeme}@postgres:5432/${DB_NAME:-globalpulse_db}
+      - GLOBALPULSE_MODE=${GLOBALPULSE_MODE:-production}
+      - CRICAPI_KEY=${CRICAPI_KEY:-}
+      - OPENWEATHER_KEY=${OPENWEATHER_KEY:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - ./model_store:/app/model_store
+      - ./data:/app/data
+
+  # ── Streamlit Dashboard ───────────────────────────────────
+  dashboard:
+    build: .
+    command: >
+      streamlit run dashboard/app.py
+      --server.port 8501
+      --server.address 0.0.0.0
+      --server.headless true
+      --browser.gatherUsageStats false
+    restart: always
+    environment:
+      - GLOBALPULSE_DB_URL=postgresql://${DB_USER:-globalpulse_user}:${DB_PASSWORD:-changeme}@postgres:5432/${DB_NAME:-globalpulse_db}
+      - GLOBALPULSE_MODE=${GLOBALPULSE_MODE:-production}
+      - CRICAPI_KEY=${CRICAPI_KEY:-}
+    ports:
+      - "8501:8501"
+    depends_on:
+      - postgres
+      - api
+    volumes:
+      - ./model_store:/app/model_store
+      - ./data:/app/data
+      - ./reports:/app/reports
+
+  # ── Nginx Reverse Proxy ───────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+      - dashboard
+
+  # ── Automated Scheduler ───────────────────────────────────
+  scheduler:
+    build: .
+    command: python scheduler.py
+    restart: always
+    environment:
+      - GLOBALPULSE_DB_URL=postgresql://${DB_USER:-globalpulse_user}:${DB_PASSWORD:-changeme}@postgres:5432/${DB_NAME:-globalpulse_db}
+      - CRICAPI_KEY=${CRICAPI_KEY:-}
+    depends_on:
+      - postgres
+      - api
+    volumes:
+      - ./data:/app/data
+
+volumes:
+  postgres_data:

@@ -1,0 +1,90 @@
+name: Daily Data Update
+
+# Runs every day at 6:00 AM UTC (11:30 AM IST)
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:  # Also allows manual trigger from GitHub UI
+
+jobs:
+  daily-update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create .env from GitHub Secrets
+        run: |
+          cat > .env << EOF
+          GLOBALPULSE_DB_URL=${{ secrets.SUPABASE_DB_URL }}
+          CRICAPI_KEY=${{ secrets.CRICAPI_KEY }}
+          OPENWEATHER_KEY=${{ secrets.OPENWEATHER_KEY }}
+          GLOBALPULSE_MODE=production
+          EOF
+
+      - name: Fetch today's match results & update predictions
+        run: |
+          python -c "
+          import os
+          from dotenv import load_dotenv
+          load_dotenv()
+          from core.memory.schema import get_engine, create_tables
+          from core.etl.connectors.live_connector import ScoreConnector
+
+          engine = get_engine()
+          create_tables(engine)
+
+          # Fetch recent completed results and mark predictions correct/wrong
+          scorer = ScoreConnector()
+          results = scorer.fetch_recent_results(limit=20)
+          print(f'Fetched {len(results)} recent results')
+
+          from sqlalchemy.orm import Session
+          from sqlalchemy import text
+          with Session(engine) as session:
+              for result in results:
+                  match_id = result.get('match_id')
+                  winner = result.get('winner', '')
+                  if not match_id or not winner:
+                      continue
+                  session.execute(text('''
+                      UPDATE prediction_store
+                      SET actual_winner_id = :winner,
+                          is_correct = (predicted_winner_id = :winner)
+                      WHERE match_id = :mid AND actual_winner_id IS NULL
+                  '''), {'winner': winner.lower().replace(' ', '_'), 'mid': match_id})
+              session.commit()
+              print('Predictions updated in Supabase')
+          "
+
+      - name: Check for new Cricsheet data
+        run: |
+          python -c "
+          from etl.collectors.cricsheet_collector import CricsheetCollector
+          c = CricsheetCollector(data_dir='data/raw/cricsheet')
+          files = c.collect()
+          print(f'Cricsheet sync complete: {len(files)} total files')
+          "
+        continue-on-error: true  # Don't fail workflow if Cricsheet is down
+
+      - name: Show database health
+        run: python etl_run.py --status
+        env:
+          GLOBALPULSE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Daily update failed! Check the Actions log."
+          # Add Slack/Discord webhook here if desired
