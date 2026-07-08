@@ -208,6 +208,8 @@ class TrainingPipeline:
                         )
                         session.add(model_record)
 
+                        preds = []
+                        lineages = []
                         # Save Predictions + Lineage
                         for i, match_id in enumerate(test_df['id'].values):
                             prob = float(y_prob[i])
@@ -231,7 +233,7 @@ class TrainingPipeline:
                                 actual_winner_id=str(actual_winner),
                                 is_correct=(pred_winner == actual_winner)
                             )
-                            session.add(pred_record)
+                            preds.append(pred_record)
 
                             # Data Lineage record
                             lineage = DBPredictionLineage(
@@ -249,8 +251,11 @@ class TrainingPipeline:
                                 training_timestamp=train_start_ts,
                                 prediction_timestamp=datetime.utcnow()
                             )
-                            session.add(lineage)
+                            lineages.append(lineage)
 
+                        session.add_all(preds)
+                        session.flush()
+                        session.add_all(lineages)
                         session.commit()
                         all_results.append((model_id, metrics.get("brier_score", 1.0)))
 
