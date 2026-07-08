@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os, uvicorn, logging, joblib
 from sqlalchemy.orm import Session
@@ -7,6 +8,15 @@ from core.memory.schema import get_engine, create_tables, DBPredictionLineage
 from core.engine.continuous_learning import ContinuousLearningEngine
 
 app = FastAPI(title="GlobalPulse Prediction API", version="4.0")
+
+# Add CORS so Cloudflare Pages frontend can call the API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, change this to your Cloudflare Pages URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Setup DB
 db_url = os.environ.get("GLOBALPULSE_DB_URL", "sqlite:///globalpulse_dev.db")

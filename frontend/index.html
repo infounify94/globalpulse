@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GlobalPulse | AI Prediction Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="animated-background"></div>
+    
+    <main class="container">
+        <header>
+            <div class="logo">
+                <div class="pulse-ring"></div>
+                <h1>GlobalPulse</h1>
+            </div>
+            <p class="subtitle">AI-Powered Sports Prediction Engine</p>
+        </header>
+
+        <section class="prediction-card glass-panel">
+            <div class="card-header">
+                <h2>Live Match Prediction</h2>
+                <span class="status-badge"><span class="dot"></span> Model Active</span>
+            </div>
+            
+            <form id="prediction-form">
+                <div class="form-grid">
+                    <div class="input-group">
+                        <label for="team-a">Team A</label>
+                        <select id="team-a" required>
+                            <option value="" disabled selected>Select Team A</option>
+                            <option value="da_warner">David Warner XI</option>
+                            <option value="ak_mandal">A.K. Mandal XI</option>
+                            <option value="team_india">India</option>
+                            <option value="team_australia">Australia</option>
+                            <option value="team_england">England</option>
+                            <option value="csk">Chennai Super Kings</option>
+                            <option value="mi">Mumbai Indians</option>
+                            <!-- Add dynamic loading later -->
+                        </select>
+                    </div>
+                    
+                    <div class="vs-divider">VS</div>
+
+                    <div class="input-group">
+                        <label for="team-b">Team B</label>
+                        <select id="team-b" required>
+                            <option value="" disabled selected>Select Team B</option>
+                            <option value="da_warner">David Warner XI</option>
+                            <option value="ak_mandal">A.K. Mandal XI</option>
+                            <option value="team_india">India</option>
+                            <option value="team_australia">Australia</option>
+                            <option value="team_england">England</option>
+                            <option value="csk">Chennai Super Kings</option>
+                            <option value="mi">Mumbai Indians</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="input-group full-width">
+                    <label for="venue">Venue</label>
+                    <input type="text" id="venue" placeholder="e.g., Eden Gardens, Kolkata" required>
+                </div>
+
+                <button type="submit" class="glow-button" id="predict-btn">
+                    <span>Generate Prediction</span>
+                </button>
+            </form>
+
+            <div id="result-container" class="result-container hidden">
+                <h3>Prediction Result</h3>
+                <div class="result-display">
+                    <div class="winner-box">
+                        <span class="label">Predicted Winner</span>
+                        <h2 id="predicted-winner">-</h2>
+                    </div>
+                    <div class="stats-box">
+                        <div class="stat">
+                            <span class="label">Win Probability</span>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar" id="prob-bar"></div>
+                            </div>
+                            <span class="value" id="prob-val">0%</span>
+                        </div>
+                        <div class="stat">
+                            <span class="label">AI Confidence</span>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar confidence" id="conf-bar"></div>
+                            </div>
+                            <span class="value" id="conf-val">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <footer>
+            <p>Powered by XGBoost & Optuna Tuning</p>
+        </footer>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
