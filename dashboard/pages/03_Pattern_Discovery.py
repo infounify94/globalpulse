@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 db_url = os.environ.get("GLOBALPULSE_DB_URL", "sqlite:///globalpulse_dev.db")
 engine = create_engine(db_url)
 
-st.set_page_config(page_title="Pattern Discovery", layout="wide")
+
 st.title("🧩 Pattern Discovery Dashboard")
 st.markdown("Automatically discover hidden correlations, new feature combinations, and unknown clusters.")
 

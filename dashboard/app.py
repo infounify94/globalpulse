@@ -121,7 +121,7 @@ if page == "dashboard":
         "SELECT is_correct, probability, prediction_timestamp FROM prediction_store "
         "WHERE is_correct IS NOT NULL ORDER BY prediction_timestamp DESC LIMIT 200"
     )
-    df_models = safe_query("SELECT * FROM model_registry ORDER BY rowid DESC LIMIT 1")
+    df_models = safe_query("SELECT * FROM model_registry ORDER BY test_end_year DESC LIMIT 1")
     df_events = safe_query("SELECT COUNT(*) as cnt FROM events")
 
     total_matches = df_events['cnt'].iloc[0] if not df_events.empty else 0
@@ -361,7 +361,7 @@ elif page == "retrain":
 
     df = safe_query(
         "SELECT id, algorithm, test_end_year, is_champion, "
-        "performance_metrics, model_artifact_path FROM model_registry ORDER BY rowid DESC LIMIT 20"
+        "performance_metrics, model_artifact_path FROM model_registry ORDER BY test_end_year DESC LIMIT 20"
     )
 
     if df.empty:
