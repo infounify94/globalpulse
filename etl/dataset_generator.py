@@ -46,8 +46,8 @@ class WalkForwardDatasetGenerator:
                 fa.features as astro_features
             FROM events e
             JOIN cricket_match_metadata m ON e.id = m.event_id
-            LEFT JOIN feature_statistics fs ON e.id = fs.event_id
-            LEFT JOIN feature_astronomy fa ON e.id = fa.event_id
+            LEFT JOIN features_statistics fs ON e.id = fs.event_id
+            LEFT JOIN features_astronomy fa ON e.id = fa.event_id
             WHERE e.event_type = 'cricket'
             """
             

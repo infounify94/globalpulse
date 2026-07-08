@@ -36,8 +36,8 @@ class DataQualityDashboard:
             report.append(f"Total Players: {total_players}")
             
             # 5. Total Features Generated
-            total_stats = session.execute(text("SELECT COUNT(*) FROM feature_statistics")).scalar()
-            total_astro = session.execute(text("SELECT COUNT(*) FROM feature_astronomy")).scalar()
+            total_stats = session.execute(text("SELECT COUNT(*) FROM features_statistics")).scalar()
+            total_astro = session.execute(text("SELECT COUNT(*) FROM features_astronomy")).scalar()
             report.append(f"Statistical Feature Rows: {total_stats}")
             report.append(f"Astronomy Feature Rows: {total_astro}")
             
