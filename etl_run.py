@@ -99,8 +99,8 @@ def cmd_import(engine):
             continue
 
         try:
-            event, metadata, teams, venue, innings, deliveries = parser.parse(filepath)
-            loader.load_match(event, metadata, teams, venue, innings, deliveries)
+            event, metadata, teams, venue, innings, deliveries, players = parser.parse(filepath)
+            loader.load_match(event, metadata, teams, venue, innings, deliveries, players)
             imported += 1
         except Exception as e:
             errors.append({"file": filepath, "error": str(e)})

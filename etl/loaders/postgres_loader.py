@@ -13,7 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from core.memory.schema import (
     DBEvent, DBCricketMatchMetadata, DBTeam, DBVenue, DBInning, DBDelivery,
-    DBFeatureStatistics, DBFeatureAstronomy, DBFeatureEnvironment, DBFeatureVector
+    DBFeatureStatistics, DBFeatureAstronomy, DBFeatureEnvironment, DBFeatureVector, DBPlayer
 )
 
 
@@ -72,6 +72,7 @@ class PostgresLoader:
                    venue: DBVenue,
                    innings: List[DBInning],
                    deliveries: List[DBDelivery],
+                   players: List[DBPlayer],
                    features: List[Any] = None):
         """Loads a complete match in a single fast transaction."""
 
@@ -80,6 +81,7 @@ class PostgresLoader:
                 # Insert all objects in the correct FK order
                 self._bulk_insert_ignore(conn, DBTeam, teams)
                 self._bulk_insert_ignore(conn, DBVenue, [venue])
+                self._bulk_insert_ignore(conn, DBPlayer, players)
                 self._bulk_insert_ignore(conn, DBEvent, [event])
                 self._bulk_insert_ignore(conn, DBCricketMatchMetadata, [metadata])
                 self._bulk_insert_ignore(conn, DBInning, innings)
