@@ -28,6 +28,9 @@
                 <a href="#" class="nav-item" data-page="analytics">
                     <i class="fas fa-chart-bar"></i> AI Analytics
                 </a>
+                <a href="#" class="nav-item" data-page="ancient">
+                    <i class="fas fa-star-and-crescent"></i> 🔮 Ancient Engine
+                </a>
             </nav>
             <div class="sidebar-footer">
                 <p><span class="status-indicator"></span> Model Status: <strong>Online</strong></p>
@@ -83,6 +86,67 @@
                 </div>
                 <div id="analytics-content">
                     <!-- Filled by JS -->
+                </div>
+            </section>
+
+            <!-- Page: Ancient Engine -->
+            <section id="page-ancient" class="page-content hidden">
+                <div class="feed-header ancient-header">
+                    <h2>🔮 Ancient Prediction Engine</h2>
+                    <p class="subtitle">Vedic Jyotish · Babylonian Omens · Chaldean Numerology · Pancha Bhuta</p>
+                </div>
+
+                <div class="ancient-input-card glass-panel">
+                    <div class="ancient-input-grid">
+                        <div class="ainput-group">
+                            <label>Team A</label>
+                            <input type="text" id="anc-team-a" placeholder="e.g. India" value="India">
+                        </div>
+                        <div class="ainput-group">
+                            <label>Team B</label>
+                            <input type="text" id="anc-team-b" placeholder="e.g. Australia" value="Australia">
+                        </div>
+                        <div class="ainput-group">
+                            <label>Match Date</label>
+                            <input type="date" id="anc-date">
+                        </div>
+                        <div class="ainput-group">
+                            <label>Venue</label>
+                            <input type="text" id="anc-venue" placeholder="e.g. Melbourne Cricket Ground">
+                        </div>
+                    </div>
+                    <div class="ainput-group full">
+                        <label>Team A Playing XI (comma-separated names)</label>
+                        <input type="text" id="anc-players-a" placeholder="e.g. Rohit Sharma, Virat Kohli, Shubman Gill...">
+                    </div>
+                    <div class="ainput-group full">
+                        <label>Team B Playing XI (comma-separated names)</label>
+                        <input type="text" id="anc-players-b" placeholder="e.g. David Warner, Steve Smith, Pat Cummins...">
+                    </div>
+                    <button class="ancient-btn" id="anc-predict-btn" onclick="runAncientPrediction()">
+                        <i class="fas fa-eye"></i> Reveal Ancient Prediction
+                    </button>
+                </div>
+
+                <div id="anc-loader" class="loader-container hidden">
+                    <div class="spinner" style="border-top-color:#a855f7"></div>
+                    <p style="color:#a855f7">Consulting the ancient stars...</p>
+                </div>
+
+                <div id="anc-results" class="hidden">
+                    <!-- Filled by JS -->
+                </div>
+
+                <div class="ancient-live-section">
+                    <div class="feed-header" style="margin-top:2rem">
+                        <h3>Live Match Ancient Readings</h3>
+                        <p class="subtitle">Real matches from CricAPI — analysed by ancient systems</p>
+                    </div>
+                    <div id="anc-live-loader" class="loader-container">
+                        <div class="spinner" style="border-top-color:#a855f7"></div>
+                        <p style="color:#a855f7">Fetching live matches...</p>
+                    </div>
+                    <div id="anc-live-grid" class="matches-grid hidden"></div>
                 </div>
             </section>
 

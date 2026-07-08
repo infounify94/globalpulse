@@ -363,3 +363,111 @@ body {
 }
 .accuracy-note li::before { content: '▸'; position: absolute; left: 0; color: var(--primary); }
 .accuracy-note strong { color: var(--text-main); }
+
+/* ── Ancient Engine Styles ───────────────────────────────────────── */
+.ancient-header h2 {
+    background: linear-gradient(135deg, #e9d5ff, #a855f7, #f59e0b);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+
+.ancient-input-card {
+    border-radius: 14px; padding: 1.5rem; margin-bottom: 1.5rem;
+    border-color: rgba(168,85,247,0.2);
+}
+.ancient-input-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 1rem; margin-bottom: 1rem;
+}
+.ainput-group { display: flex; flex-direction: column; gap: 6px; }
+.ainput-group.full { margin-bottom: 0.75rem; }
+.ainput-group label {
+    font-size: 0.75rem; font-weight: 700; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+}
+.ainput-group input {
+    background: rgba(0,0,0,0.25); border: 1px solid rgba(168,85,247,0.2);
+    color: var(--text-main); padding: 10px 14px; border-radius: 10px;
+    font-family: inherit; font-size: 0.9rem; outline: none; transition: border-color 0.2s;
+}
+.ainput-group input:focus { border-color: #a855f7; box-shadow: 0 0 0 2px rgba(168,85,247,0.2); }
+
+.ancient-btn {
+    width: 100%; padding: 14px; border: none; border-radius: 10px; margin-top: 1rem;
+    background: linear-gradient(135deg, #7c3aed, #a855f7, #f59e0b);
+    color: #fff; font-family: inherit; font-size: 1rem; font-weight: 700;
+    cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; letter-spacing: 0.5px;
+}
+.ancient-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(168,85,247,0.4); }
+
+/* Consensus Card */
+.anc-consensus {
+    border-radius: 16px; padding: 1.5rem; margin-bottom: 1.5rem;
+    border-color: rgba(168,85,247,0.3); text-align: center;
+}
+.anc-consensus-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: #a855f7; margin-bottom: 1rem; font-weight: 800; }
+.anc-teams-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.anc-team { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 38%; }
+.anc-logo {
+    width: 52px; height: 52px; border-radius: 50%; background: rgba(168,85,247,0.1);
+    border: 1px solid rgba(168,85,247,0.2);
+    display: flex; justify-content: center; align-items: center;
+    font-size: 1.1rem; font-weight: 800;
+}
+.anc-team.anc-winner .anc-logo { border-color: #a855f7; box-shadow: 0 0 16px rgba(168,85,247,0.4); }
+.anc-name { font-weight: 600; font-size: 0.9rem; }
+.anc-prob { font-size: 1.2rem; font-weight: 800; }
+.anc-vs { background: rgba(168,85,247,0.1); color: #a855f7; padding: 4px 10px; border-radius: 10px; font-weight: 800; font-size: 0.8rem; }
+.anc-bar-wrap { height: 8px; background: var(--secondary); border-radius: 4px; overflow: hidden; margin-bottom: 0.75rem; }
+.anc-bar-fill { height: 100%; background: #a855f7; transition: width 1s ease; }
+.anc-winner-text { font-size: 0.9rem; color: var(--text-muted); }
+.anc-winner-text strong { color: #a855f7; }
+
+/* Panchanga Card */
+.panchanga-card {
+    border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;
+    border-color: rgba(245,158,11,0.2);
+}
+.panch-title { font-size: 0.85rem; font-weight: 700; color: var(--warning); margin-bottom: 0.75rem; }
+.panch-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; }
+.panch-item { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 8px 12px; }
+.panch-item span { display: block; font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+.panch-item strong { font-size: 0.9rem; }
+
+/* Systems Grid */
+.anc-systems-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+.anc-system-card { border-radius: 12px; padding: 1rem 1.25rem; border-color: rgba(168,85,247,0.15); }
+.anc-sys-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.anc-sys-emoji { font-size: 1.2rem; }
+.anc-sys-name { flex: 1; font-weight: 700; font-size: 0.9rem; }
+.anc-sys-winner { font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
+.winner-a { background: rgba(99,102,241,0.15); color: var(--primary); }
+.winner-b { background: rgba(236,72,153,0.15); color: var(--secondary); }
+.anc-sys-bar-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.bar-label-l, .bar-label-r { font-size: 0.72rem; font-weight: 700; white-space: nowrap; color: var(--text-muted); }
+.anc-sys-bar { flex: 1; height: 6px; background: rgba(236,72,153,0.3); border-radius: 3px; overflow: hidden; }
+.anc-sys-fill { height: 100%; background: #a855f7; border-radius: 3px; }
+.anc-sys-explanation { font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; }
+
+/* Planetary Grid */
+.planet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.75rem; margin-bottom: 2rem; }
+.planet-card {
+    background: rgba(0,0,0,0.25); border: 1px solid var(--border-color);
+    border-radius: 10px; padding: 10px; text-align: center;
+}
+.planet-card.exalted { border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.06); }
+.planet-card.retrograde { border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.05); }
+.planet-name { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px; font-weight: 600; }
+.planet-sign { font-size: 1rem; font-weight: 800; color: var(--text-main); margin-bottom: 3px; }
+.planet-state { font-size: 0.68rem; color: var(--text-muted); }
+.planet-card.exalted .planet-state { color: var(--warning); }
+.planet-card.retrograde .planet-state { color: #f87171; }
+
+.ancient-badge { background: rgba(168,85,247,0.15) !important; color: #a855f7 !important; }
+.ancient-live-card { border-color: rgba(168,85,247,0.2) !important; }
+
+@media (max-width: 900px) {
+    .ancient-input-grid { grid-template-columns: 1fr 1fr; }
+    .anc-systems-grid { grid-template-columns: 1fr; }
+    .panch-grid { grid-template-columns: 1fr 1fr; }
+}
+
