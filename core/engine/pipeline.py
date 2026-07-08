@@ -62,15 +62,26 @@ class TrainingPipeline:
             row_features = {}
 
             for fam in families:
-                # Each family has a corresponding column in the parquet/dataframe
-                # The parquet stores stats_features, astro_features, env_features as JSON strings
-                col = f"{fam}_features"
-                if col in row and row[col] and row[col] not in ("", None, "null"):
-                    try:
-                        feat_dict = json.loads(row[col]) if isinstance(row[col], str) else row[col]
-                        row_features.update(feat_dict)
-                    except (json.JSONDecodeError, TypeError):
-                        pass
+                # Map family name to the column name generated in dataset_generator.py
+                col_map = {
+                    "statistics": "stat_features",
+                    "astronomy": "astro_features",
+                    "environment": "env_features"
+                }
+                col = col_map.get(fam, f"{fam}_features")
+                
+                if col in row and row[col] is not None:
+                    # Some pandas versions handle NaNs for missing objects, check for that
+                    if isinstance(row[col], float) and pd.isna(row[col]):
+                        continue
+                        
+                    if row[col] not in ("", "null"):
+                        try:
+                            feat_dict = json.loads(row[col]) if isinstance(row[col], str) else row[col]
+                            if isinstance(feat_dict, dict):
+                                row_features.update(feat_dict)
+                        except (json.JSONDecodeError, TypeError):
+                            pass
 
             all_columns.append(row_features)
 
