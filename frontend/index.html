@@ -3,105 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GlobalPulse | AI Prediction Engine</title>
+    <title>GlobalPulse | AI Cricket Predictions</title>
+    <meta name="description" content="AI-powered cricket match predictions using XGBoost, historical stats, and ancient astronomical techniques.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="animated-background"></div>
-    
-    <main class="container">
-        <header>
+    <div class="app-container">
+
+        <!-- Sidebar -->
+        <aside class="sidebar glass-panel">
             <div class="logo">
                 <div class="pulse-ring"></div>
                 <h1>GlobalPulse</h1>
             </div>
-            <p class="subtitle">AI-Powered Sports Prediction Engine</p>
-        </header>
-
-        <section class="prediction-card glass-panel">
-            <div class="card-header">
-                <h2>Live Match Prediction</h2>
-                <span class="status-badge"><span class="dot"></span> Model Active</span>
+            <nav class="side-nav">
+                <a href="#" class="nav-item active" data-page="upcoming">
+                    <i class="fas fa-calendar-alt"></i> Upcoming Matches
+                </a>
+                <a href="#" class="nav-item" data-page="analytics">
+                    <i class="fas fa-chart-bar"></i> AI Analytics
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <p><span class="status-indicator"></span> Model Status: <strong>Online</strong></p>
+                <p class="model-info">Champion: XGBoost + Astro</p>
             </div>
-            
-            <form id="prediction-form">
-                <div class="form-grid">
-                    <div class="input-group">
-                        <label for="team-a">Team A</label>
-                        <select id="team-a" required>
-                            <option value="" disabled selected>Select Team A</option>
-                            <option value="da_warner">David Warner XI</option>
-                            <option value="ak_mandal">A.K. Mandal XI</option>
-                            <option value="team_india">India</option>
-                            <option value="team_australia">Australia</option>
-                            <option value="team_england">England</option>
-                            <option value="csk">Chennai Super Kings</option>
-                            <option value="mi">Mumbai Indians</option>
-                            <!-- Add dynamic loading later -->
-                        </select>
-                    </div>
-                    
-                    <div class="vs-divider">VS</div>
+        </aside>
 
-                    <div class="input-group">
-                        <label for="team-b">Team B</label>
-                        <select id="team-b" required>
-                            <option value="" disabled selected>Select Team B</option>
-                            <option value="da_warner">David Warner XI</option>
-                            <option value="ak_mandal">A.K. Mandal XI</option>
-                            <option value="team_india">India</option>
-                            <option value="team_australia">Australia</option>
-                            <option value="team_england">England</option>
-                            <option value="csk">Chennai Super Kings</option>
-                            <option value="mi">Mumbai Indians</option>
-                        </select>
+        <!-- Main -->
+        <main class="main-content">
+
+            <!-- Top Nav / Filters (only for upcoming page) -->
+            <header class="top-nav glass-panel" id="top-filters">
+                <div class="filters-group">
+                    <div class="filter-label"><i class="fas fa-filter"></i> Format:</div>
+                    <div class="filter-buttons" id="match-type-filters">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="T20I">T20I</button>
+                        <button class="filter-btn" data-filter="ODI">ODI</button>
+                        <button class="filter-btn" data-filter="Test">Test</button>
+                    </div>
+                    <div class="filter-divider"></div>
+                    <div class="filter-label">Gender:</div>
+                    <div class="filter-buttons" id="gender-filters">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="male">Men</button>
+                        <button class="filter-btn" data-filter="female">Women</button>
                     </div>
                 </div>
-
-                <div class="input-group full-width">
-                    <label for="venue">Venue</label>
-                    <input type="text" id="venue" placeholder="e.g., Eden Gardens, Kolkata" required>
+                <div class="search-bar">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="venue-search" placeholder="Search by venue...">
                 </div>
+            </header>
 
-                <button type="submit" class="glow-button" id="predict-btn">
-                    <span>Generate Prediction</span>
-                </button>
-            </form>
-
-            <div id="result-container" class="result-container hidden">
-                <h3>Prediction Result</h3>
-                <div class="result-display">
-                    <div class="winner-box">
-                        <span class="label">Predicted Winner</span>
-                        <h2 id="predicted-winner">-</h2>
-                    </div>
-                    <div class="stats-box">
-                        <div class="stat">
-                            <span class="label">Win Probability</span>
-                            <div class="progress-bar-container">
-                                <div class="progress-bar" id="prob-bar"></div>
-                            </div>
-                            <span class="value" id="prob-val">0%</span>
-                        </div>
-                        <div class="stat">
-                            <span class="label">AI Confidence</span>
-                            <div class="progress-bar-container">
-                                <div class="progress-bar confidence" id="conf-bar"></div>
-                            </div>
-                            <span class="value" id="conf-val">0%</span>
-                        </div>
-                    </div>
+            <!-- Page: Upcoming Matches -->
+            <section id="page-upcoming" class="page-content">
+                <div class="feed-header">
+                    <h2>Future Predictions</h2>
+                    <p class="subtitle">Autonomously generated by GlobalPulse AI</p>
                 </div>
-            </div>
-        </section>
-        
-        <footer>
-            <p>Powered by XGBoost & Optuna Tuning</p>
-        </footer>
-    </main>
+                <div id="loader" class="loader-container">
+                    <div class="spinner"></div>
+                    <p>AI is analyzing historical data...</p>
+                </div>
+                <div id="matches-grid" class="matches-grid hidden"></div>
+            </section>
+
+            <!-- Page: AI Analytics -->
+            <section id="page-analytics" class="page-content hidden">
+                <div class="feed-header">
+                    <h2>AI Analytics</h2>
+                    <p class="subtitle">All trained models, their accuracy, and feature insights</p>
+                </div>
+                <div id="analytics-content">
+                    <!-- Filled by JS -->
+                </div>
+            </section>
+
+        </main>
+    </div>
 
     <script src="script.js"></script>
 </body>

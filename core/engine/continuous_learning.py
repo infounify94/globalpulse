@@ -30,10 +30,21 @@ class ContinuousLearningEngine:
         """
         # Step 1: Find the Best Model historically
         with Session(self.engine) as session:
-            # We want the most recent model that performed best on Brier Score
-            best_model_record = session.query(DBModelRegistry).order_by(
+            # Filter for valid artifact paths and find the champion
+            best_model_record = session.query(DBModelRegistry).filter(
+                DBModelRegistry.model_artifact_path.isnot(None),
+                DBModelRegistry.is_champion == True
+            ).order_by(
                 DBModelRegistry.test_end_year.desc()
-            ).first() # In reality, we'd query by lowest brier_score in the most recent window.
+            ).first() 
+            
+            # Fallback if no champion is explicitly marked but valid models exist
+            if not best_model_record:
+                best_model_record = session.query(DBModelRegistry).filter(
+                    DBModelRegistry.model_artifact_path.isnot(None)
+                ).order_by(
+                    DBModelRegistry.test_end_year.desc()
+                ).first()
             
             if not best_model_record:
                 raise ValueError("No trained models found in the Registry.")
@@ -42,10 +53,33 @@ class ContinuousLearningEngine:
             algorithm = best_model_record.algorithm
             artifact_path = best_model_record.model_artifact_path
             
-            # Step 2: Extract Features (Mocked here, normally calls FeatureGenerator)
-            # In a real scenario, this would query Supabase for the historical features.
-            # We use 10 features as that matches our pipeline baseline output size.
-            X_live = np.random.rand(1, 10)
+            # Step 2: Extract Real Features!
+            # Instead of random noise, we now dynamically calculate the exact statistics 
+            # (Win Rates, Head-to-Head, Venue records, Elo Ratings) from the historical database
+            # up to this exact moment in time!
+            from plugins.cricket.cricket_event import CricketEvent
+            from plugins.cricket.cricket_stats_generator import CricketStatsGenerator
+            import pandas as pd
+            
+            match_id = match_data.get('match_id', "unknown")
+            
+            cricket_event = CricketEvent(
+                id=match_id,
+                date=datetime.utcnow().date(),
+                location=match_data.get('venue', 'unknown'),
+                participants=[match_data['team_a'], match_data['team_b']],
+                match_type="T20I",
+                venue_name=match_data.get('venue', 'unknown'),
+                team_a=match_data['team_a'],
+                team_b=match_data['team_b']
+            )
+            
+            stats_gen = CricketStatsGenerator(self.engine)
+            real_features = stats_gen.generate(cricket_event)
+            
+            # The pipeline uses a DataFrame to build the feature array, preserving order
+            feat_df = pd.DataFrame([real_features]).fillna(0.0).select_dtypes(include=[np.number])
+            X_live = feat_df.values
             
             # Step 3: Load actual model weights from disk
             try:
@@ -65,10 +99,23 @@ class ContinuousLearningEngine:
             pred_winner = match_data['team_a'] if prob > 0.5 else match_data['team_b']
             
             # Step 5: Log to DB (Enhanced Prediction Archive)
+            # Create a dummy event for live predictions to satisfy the Foreign Key constraint
+            from core.memory.schema import DBEvent
+            match_id = match_data.get('match_id', "unknown")
+            if match_id.startswith("live_"):
+                existing = session.query(DBEvent).filter_by(id=match_id).first()
+                if not existing:
+                    session.add(DBEvent(
+                        id=match_id,
+                        date=datetime.utcnow().date(),
+                        event_type="cricket"
+                    ))
+                    session.commit()
+            
             prediction_id = f"live_{datetime.utcnow().timestamp()}"
             pred_record = DBPredictionStore(
                 id=prediction_id,
-                match_id=match_data.get('match_id', "unknown"),
+                match_id=match_id,
                 model_id=model_id,
                 prediction_timestamp=datetime.utcnow(),
                 predicted_winner_id=pred_winner,
@@ -83,10 +130,13 @@ class ContinuousLearningEngine:
             
             return {
                 "prediction_id": prediction_id,
-                "winner": pred_winner,
+                "predicted_winner": pred_winner,
                 "probability": prob,
                 "confidence": confidence_score,
-                "model_used": model_id
+                "model_used": model_id,
+                "features_used": list(real_features.keys()),
+                "team_a": match_data['team_a'],
+                "team_b": match_data['team_b'],
             }
 
     def verify_and_retrain(self, prediction_id: str, actual_winner: str):
