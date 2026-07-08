@@ -279,7 +279,7 @@ elif page == "model_perf":
 elif page == "features":
     st.markdown("# 🧬 Feature Importance")
     df = safe_query(
-        "SELECT feature_name, family, baseline_importance, usefulness_flag "
+        "SELECT feature_name, domain, baseline_importance, usefulness_flag "
         "FROM feature_registry ORDER BY baseline_importance DESC"
     )
 
@@ -292,7 +292,7 @@ elif page == "features":
 
         top_n = st.slider("Show Top N features", 10, 100, 25)
         fig = px.bar(df.head(top_n), x='baseline_importance', y='feature_name',
-                     color='family', orientation='h',
+                     color='domain', orientation='h',
                      title=f"Top {top_n} Features by Importance",
                      template="plotly_dark")
         fig.update_layout(yaxis={'categoryorder': 'total ascending'},
@@ -304,7 +304,7 @@ elif page == "features":
         if dead.empty:
             st.success("No dead features detected.")
         else:
-            st.dataframe(dead[['feature_name', 'family', 'baseline_importance']], use_container_width=True)
+            st.dataframe(dead[['feature_name', 'domain', 'baseline_importance']], use_container_width=True)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # PAGE: Data Health

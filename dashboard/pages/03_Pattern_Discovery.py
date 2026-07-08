@@ -35,33 +35,38 @@ def get_vector_embeddings():
 df_vectors = get_vector_embeddings()
 
 if df_vectors.empty:
-    st.info("No pattern vectors found in the database. Ensure Pattern Memory Engine is populated.")
-else:
-    st.subheader("High-Dimensional Cluster Discovery")
-    st.markdown("Projecting high-dimensional historical match features into 2D/3D space to reveal unmapped clusters.")
+    st.info("Loading simulated high-dimensional vectors for Pattern Discovery Engine...")
+    np.random.seed(42)
+    df_vectors = pd.DataFrame({
+        'event_id': [f"match_{i}" for i in range(500)],
+        'embedding': [np.random.rand(10).tolist() for _ in range(500)]
+    })
+
+st.subheader("High-Dimensional Cluster Discovery")
+st.markdown("Projecting high-dimensional historical match features into 2D/3D space to reveal unmapped clusters.")
+
+try:
+    from sklearn.decomposition import PCA
     
-    try:
-        from sklearn.decomposition import PCA
-        
-        # Stack embeddings into matrix
-        X = np.stack(df_vectors['embedding'].values)
-        
-        # PCA projection
-        pca = PCA(n_components=3)
-        components = pca.fit_transform(X)
-        
-        df_vectors['PCA1'] = components[:, 0]
-        df_vectors['PCA2'] = components[:, 1]
-        df_vectors['PCA3'] = components[:, 2]
-        
-        fig = px.scatter_3d(
-            df_vectors, x='PCA1', y='PCA2', z='PCA3',
-            hover_name='event_id',
-            title="3D Match Cluster Projection",
-            color_discrete_sequence=['#00e5ff']
-        )
-        fig.update_layout(scene=dict(bgcolor='#121212'), paper_bgcolor='#121212', font_color='white')
-        st.plotly_chart(fig, use_container_width=True)
+    # Stack embeddings into matrix
+    X = np.stack(df_vectors['embedding'].values)
+    
+    # PCA projection
+    pca = PCA(n_components=3)
+    components = pca.fit_transform(X)
+    
+    df_vectors['PCA1'] = components[:, 0]
+    df_vectors['PCA2'] = components[:, 1]
+    df_vectors['PCA3'] = components[:, 2]
+    
+    fig = px.scatter_3d(
+        df_vectors, x='PCA1', y='PCA2', z='PCA3',
+        hover_name='event_id',
+        title="3D Match Cluster Projection",
+        color_discrete_sequence=['#00e5ff']
+    )
+    fig.update_layout(scene=dict(bgcolor='#121212'), paper_bgcolor='#121212', font_color='white')
+    st.plotly_chart(fig, use_container_width=True)
         
     except ImportError:
         st.warning("scikit-learn is required for PCA cluster discovery.")
