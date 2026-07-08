@@ -125,9 +125,9 @@ class CricsheetParser:
         db_players_dict = {}
         for d in db_deliveries:
             if d.batter_id not in db_players_dict:
-                db_players_dict[d.batter_id] = DBPlayer(id=d.batter_id, name=d.batter_id)
+                db_players_dict[d.batter_id] = DBPlayer(id=d.batter_id, name=d.batter_id, domain="cricket")
             if d.bowler_id not in db_players_dict:
-                db_players_dict[d.bowler_id] = DBPlayer(id=d.bowler_id, name=d.bowler_id)
+                db_players_dict[d.bowler_id] = DBPlayer(id=d.bowler_id, name=d.bowler_id, domain="cricket")
         
         db_players = list(db_players_dict.values())
         return db_event, db_metadata, [db_team_a, db_team_b], db_venue, db_innings, db_deliveries, db_players
