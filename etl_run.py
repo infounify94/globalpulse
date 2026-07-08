@@ -147,7 +147,11 @@ def cmd_features(engine):
     stats_done = 0
     astro_done = 0
 
-    for row in tqdm(pending, desc="Generating features", unit="match"):
+    stats_batch = []
+    astro_batch = []
+    BATCH_SIZE = 1000
+
+    for i, row in enumerate(tqdm(pending, desc="Generating features", unit="match")):
         event_id, date, venue_id, team_a_id, team_b_id, match_type = row
 
         # Build CricketEvent domain object
@@ -165,14 +169,10 @@ def cmd_features(engine):
         try:
             # 1. Generate Statistical Features
             stat_features = stats_generator.generate(cricket_event)
-            with Session(engine) as session:
-                existing = session.query(DBFeatureStatistics).filter_by(event_id=event_id).first()
-                if not existing:
-                    session.add(DBFeatureStatistics(
-                        event_id=event_id,
-                        features=stat_features
-                    ))
-                    session.commit()
+            stats_batch.append(DBFeatureStatistics(
+                event_id=event_id,
+                features=stat_features
+            ))
             stats_done += 1
         except Exception as e:
             logging.warning(f"Stats generation failed for {event_id}: {e}")
@@ -181,17 +181,24 @@ def cmd_features(engine):
             # 2. Generate Astronomy Features
             astro_features = astro_generator.generate(cricket_event)
             if astro_features:
-                with Session(engine) as session:
-                    existing = session.query(DBFeatureAstronomy).filter_by(event_id=event_id).first()
-                    if not existing:
-                        session.add(DBFeatureAstronomy(
-                            event_id=event_id,
-                            features=astro_features
-                        ))
-                        session.commit()
+                astro_batch.append(DBFeatureAstronomy(
+                    event_id=event_id,
+                    features=astro_features
+                ))
                 astro_done += 1
         except Exception as e:
             logging.warning(f"Astronomy generation failed for {event_id}: {e}")
+            
+        # Batch insert
+        if len(stats_batch) >= BATCH_SIZE or i == len(pending) - 1:
+            with Session(engine) as session:
+                if stats_batch:
+                    session.add_all(stats_batch)
+                if astro_batch:
+                    session.add_all(astro_batch)
+                session.commit()
+            stats_batch.clear()
+            astro_batch.clear()
 
     logging.info(f"Features complete. Stats: {stats_done} | Astronomy: {astro_done}")
 
