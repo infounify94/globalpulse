@@ -95,27 +95,37 @@ Get it from: Supabase → Your Project → Settings → Database → Connection 
         print(f"      [{table}] migrating {count:,} rows...", end="", flush=True)
         t0 = time.time()
 
-        CHUNK = 1000
+        CHUNK = 250
         migrated = 0
-        with src.connect() as sc:
-            offset = 0
-            while True:
+        offset = 0
+        
+        while True:
+            with src.connect() as sc:
                 df = pd.read_sql(text(f"SELECT * FROM {table} LIMIT {CHUNK} OFFSET {offset}"), sc)
-                if df.empty:
+            
+            if df.empty:
+                break
+
+            df = df.where(df.notna(), None)
+            rows = df.to_dict(orient="records")
+
+            # Use a fresh connection from the engine pool for each chunk to avoid pooler timeouts
+            for attempt in range(3):
+                try:
+                    with dst.begin() as dc:
+                        cols = ", ".join(df.columns)
+                        params = ", ".join(f":{c}" for c in df.columns)
+                        sql = f"INSERT INTO {table} ({cols}) VALUES ({params}) ON CONFLICT DO NOTHING"
+                        dc.execute(text(sql), rows)
                     break
+                except Exception as e:
+                    if attempt == 2:
+                        raise e
+                    print(f"      [Retry] Connection error on {table}, retrying... ({e})")
+                    time.sleep(2)
 
-                # Replace NaN with None for PostgreSQL
-                df = df.where(df.notna(), None)
-                rows = df.to_dict(orient="records")
-
-                with dst.begin() as dc:
-                    cols = ", ".join(df.columns)
-                    params = ", ".join(f":{c}" for c in df.columns)
-                    sql = f"INSERT INTO {table} ({cols}) VALUES ({params}) ON CONFLICT DO NOTHING"
-                    dc.execute(text(sql), rows)
-
-                migrated += len(df)
-                offset += CHUNK
+            migrated += len(df)
+            offset += CHUNK
 
         elapsed = time.time() - t0
         print(f" {migrated:,} rows in {elapsed:.1f}s")

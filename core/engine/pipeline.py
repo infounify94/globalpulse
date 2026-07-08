@@ -107,7 +107,9 @@ class TrainingPipeline:
                        trainers: List[Any],
                        feature_families: List[str],
                        dataset_version: str = "v1",
-                       feature_version: str = "v1"):
+                       feature_version: str = "v1",
+                       use_optuna: bool = False,
+                       optuna_trials: int = 30):
 
         start_time = datetime.utcnow()
         git_hash = _get_git_hash()
@@ -159,9 +161,19 @@ class TrainingPipeline:
                     for trainer in trainers:
                         model_id = f"{experiment_id}_{trainer.algorithm_name}_{family.replace(',','_')}_{te_start}"
                         logging.info(f"Training {model_id}...")
+                        
+                        best_params = None
+                        if use_optuna:
+                            from core.engine.optuna_optimizer import OptunaOptimizer
+                            optimizer = OptunaOptimizer(trainer.algorithm_name, n_trials=optuna_trials)
+                            try:
+                                best_params = optimizer.optimize(X_train, y_train)
+                                logging.info(f"Optuna found best params: {best_params}")
+                            except BaseException as e:
+                                logging.warning(f"Optuna failed: {e}. Falling back to defaults.")
 
                         train_start_ts = datetime.utcnow()
-                        trainer.train(X_train, y_train)
+                        trainer.train(X_train, y_train, params=best_params)
 
                         # Calibration Layer
                         calibrated_cv = CalibratedClassifierCV(trainer.get_model(), method='isotonic', cv=3)

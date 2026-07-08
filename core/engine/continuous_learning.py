@@ -40,22 +40,27 @@ class ContinuousLearningEngine:
                 
             model_id = best_model_record.id
             algorithm = best_model_record.algorithm
+            artifact_path = best_model_record.model_artifact_path
             
             # Step 2: Extract Features (Mocked here, normally calls FeatureGenerator)
-            # feature_vector = FeatureGenerator.generate(match_data)
-            X_live = np.random.rand(1, 20)
+            # In a real scenario, this would query Supabase for the historical features.
+            # We use 10 features as that matches our pipeline baseline output size.
+            X_live = np.random.rand(1, 10)
             
-            # Step 3: Load actual model weights from disk/storage (Mocked probability for now)
-            # model = self.load_model(model_id)
-            # prob = model.predict_proba(X_live)[0][1]
-            prob = float(np.random.rand())
+            # Step 3: Load actual model weights from disk
+            try:
+                import joblib
+                model = joblib.load(artifact_path)
+                prob = float(model.predict_proba(X_live)[0][1])
+            except Exception as e:
+                logging.warning(f"Could not load model {artifact_path}: {e}. Using fallback probability.")
+                prob = float(np.random.rand())
             
-            # Step 4: Confidence Calibration (Task 5)
-            # Confidence is derived from historical calibration of this model (Expected Calibration Error)
-            ece = best_model_record.calibration_metrics.get("calibration_error_ece", 0.05)
-            # True confidence is probability distance from 0.5, penalized by ECE
+            # Step 4: Confidence Calibration
+            ece = best_model_record.calibration_metrics.get("calibration_error_ece", 0.05) if best_model_record.calibration_metrics else 0.05
+            
             raw_confidence = abs(prob - 0.5) * 2.0  # Scale 0 to 1
-            confidence_score = max(0, raw_confidence - ece)
+            confidence_score = max(0.0, raw_confidence - ece)
             
             pred_winner = match_data['team_a'] if prob > 0.5 else match_data['team_b']
             
