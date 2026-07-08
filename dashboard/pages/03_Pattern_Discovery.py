@@ -67,9 +67,9 @@ try:
     )
     fig.update_layout(scene=dict(bgcolor='#121212'), paper_bgcolor='#121212', font_color='white')
     st.plotly_chart(fig, use_container_width=True)
-        
-    except ImportError:
-        st.warning("scikit-learn is required for PCA cluster discovery.")
+    
+except ImportError:
+    st.warning("scikit-learn is required for PCA cluster discovery.")
 
     st.subheader("Hidden Feature Correlations")
     st.markdown("*(Simulated)* The engine has detected a strong predictive non-linear correlation between **Venue Altitude** and **Toss Win** when **Moon Phase** is waning.")
