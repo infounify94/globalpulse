@@ -66,52 +66,59 @@ GitHub needs access to your secrets so it can deploy your code and run the cron 
 
 ---
 
-## Step 4: Deploy the Backend to Google Cloud Run
+## Step 4: Deploy the Backend to Render.com
 
-Google Cloud Run will host your prediction API for free.
+Render.com will host your prediction API for free, and they do not require a credit card upfront.
 
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
-2. Make sure you have created or selected a project (e.g., `globalpulse-backend`) from the top left dropdown.
-3. Search for **Cloud Run** in the top search bar and click on it.
-4. On the Cloud Run overview page, look for the section **Deploy a web service**.
-5. Click the large **Connect repository** button.
-6. Click **Set up with Cloud Build** and authorize GitHub if prompted.
-7. Select your repository: `infounify94/globalpulse`.
-8. Check the box to agree to the terms and click **Next**.
-9. Under **Build Configuration**:
-   - Branch: `^master$` or `^main$` (whichever branch you are using).
-   - Build Type: **Dockerfile** (Path: `/Dockerfile`).
-   - Click **Save**.
-10. Scroll down to the **Authentication** section and select **Allow unauthenticated invocations**.
-11. Expand the **Container, Variables & Secrets, Connections, Security** section:
-    - Click the **Variables & Secrets** tab.
-    - Click **Add Variable** and add these Environment Variables manually:
-      - Name: `DATABASE_URL` | Value: (Paste the value from Step 1)
-      - Name: `SUPABASE_URL` | Value: (Paste the value from Step 1)
-      - Name: `SUPABASE_KEY` | Value: (Paste the value from Step 1)
-      - Name: `CRICAPI_KEY` | Value: (Paste your CricAPI Key)
-      - Name: `CRON_SECRET_TOKEN` | Value: (Paste the random string from Step 2)
-12. Click **Create** (or **Deploy**).
+1. Go to [Render.com](https://render.com/) and create a free account.
+2. In the Render Dashboard, click **New +** and select **Web Service**.
+3. Select **Build and deploy from a Git repository**.
+4. Connect your GitHub account and select your repository: `infounify94/globalpulse`.
+5. Under **Deployment Configuration**:
+   - **Name**: `globalpulse-backend`
+   - **Branch**: `master` (or `main`)
+   - **Environment**: Select **Docker** (This is very important!).
+   - **Instance Type**: Select **Free**.
+6. Scroll down to **Environment Variables** and click **Add Environment Variable**. Add all five:
+      - Key: `DATABASE_URL` | Value: (Paste the value from Step 1)
+      - Key: `SUPABASE_URL` | Value: (Paste the value from Step 1)
+      - Key: `SUPABASE_KEY` | Value: (Paste the value from Step 1)
+      - Key: `CRICAPI_KEY` | Value: (Paste your CricAPI Key)
+      - Key: `CRON_SECRET_TOKEN` | Value: (Paste the random string from Step 2)
+7. Click **Create Web Service**.
 
-*Google Cloud Run will now build and deploy your Dockerfile. This may take 3-5 minutes. Once finished, it will give you a public URL (e.g., `https://globalpulse-xxx.a.run.app`).*
+*Render will now build your Docker container. This will take about 5-10 minutes. Once it says "Live", copy the URL at the top left (e.g., `https://globalpulse-backend.onrender.com`).*
 
 ---
 
-## Step 5: Link GitHub Actions to Your New Backend
+## Step 5: Keep the Render Server Awake (Optional but Recommended)
+
+Render's free tier goes to sleep after 15 minutes of inactivity. To prevent users from experiencing a 30-second delay when they open the app, we can use a free service to ping it every 14 minutes.
+
+1. Go to [cron-job.org](https://cron-job.org/) and create a free account.
+2. Click **Create Cronjob**.
+3. **Title**: `Keep GlobalPulse Awake`
+4. **URL**: Paste your Render URL from Step 4, and add `/` at the end (e.g., `https://globalpulse-backend.onrender.com/`).
+5. **Execution schedule**: Set it to run every **10 minutes**.
+6. Click **Create**. Now your Render server will stay active 24/7!
+
+---
+
+## Step 6: Link GitHub Actions to Your New Backend
 
 Now that your backend is alive, we must tell the GitHub Actions Scheduler where it lives.
 
-1. Copy the public URL you got from Google Cloud Run in Step 4.
+1. Copy the public URL you got from Render in Step 4.
 2. Go back to your GitHub Repository -> **Settings** -> **Secrets and variables** -> **Actions**.
 3. Click **New repository secret**.
 4. Name: `API_BASE_URL`
-5. Value: *Paste your Google Cloud Run URL (no trailing slash)*.
+5. Value: *Paste your Render URL (no trailing slash)*.
 
 *Your `scheduler.yml` GitHub Action is now fully configured to hit your live backend every 4 hours!*
 
 ---
 
-## Step 6: Deploy the Frontend to Vercel
+## Step 7: Deploy the Frontend to Vercel
 
 Vercel will host your beautiful dashboard UI.
 
@@ -125,16 +132,16 @@ Vercel will host your beautiful dashboard UI.
 *Vercel will deploy instantly. It uses the `vercel.json` file inside your frontend folder to handle routing.*
 
 ### Final Vercel Configuration (Rewrites)
-Since Vercel needs to forward `/api` requests to your Cloud Run backend, you must update the `vercel.json` file.
+Since Vercel needs to forward `/api` requests to your Render backend, you must update the `vercel.json` file.
 
 1. Open your code editor and go to `frontend/vercel.json`.
 2. Find the lines that say: `"destination": "https://<YOUR_RAILWAY_URL>/api/$1"`
-3. Replace `https://<YOUR_RAILWAY_URL>` with your **Google Cloud Run URL**.
+3. Replace `https://<YOUR_RAILWAY_URL>` with your **Render URL** (e.g. `https://globalpulse-backend.onrender.com`).
 4. Commit and push this change to GitHub. Vercel will automatically redeploy with the correct API forwarding!
 
 ---
 
-## Step 7: Upload the Initial Champion Model
+## Step 8: Upload the Initial Champion Model
 
 Your backend requires a Champion Model to exist in Supabase Storage to make predictions.
 
