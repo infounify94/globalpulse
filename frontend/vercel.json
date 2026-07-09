@@ -1,17 +1,8 @@
 {
-  "version": 2,
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "https://<YOUR_RAILWAY_URL>/api/$1"
-    },
-    {
-      "source": "/predict",
-      "destination": "https://<YOUR_RAILWAY_URL>/predict"
-    },
-    {
       "source": "/(.*)",
-      "destination": "/$1"
+      "destination": "/index.html"
     }
   ]
 }
