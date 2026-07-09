@@ -336,17 +336,19 @@ export default function DashboardPage() {
       </div>
 
       {/* System Footer */}
-      <div style={{ display: 'flex', gap: 16, marginTop: 24, flexWrap: 'wrap' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginTop: 24 }}>
         {[
+          { label: 'Champion Version', val: metrics?.champion || '—' },
+          { label: 'Previous Champion', val: metrics?.previous_champion || '—' },
+          { label: 'Drift %', val: metrics?.drift_percentage != null ? `${metrics.drift_percentage}%` : '—' },
           { label: 'Dataset Version', val: metrics?.dataset_version || '—' },
-          { label: 'Last Retrain', val: metrics?.last_retrain || '—' },
-          { label: 'Next Retrain', val: 'Sunday 00:00 UTC' },
-          { label: 'Last Prediction', val: metrics?.last_prediction || '—' },
-          { label: 'Last Verification', val: metrics?.last_verification || '—' },
+          { label: 'Confidence Calibration', val: metrics?.confidence_calibration != null ? `${(metrics.confidence_calibration * 100).toFixed(1)}%` : '—' },
+          { label: 'Number of Live Predictions', val: metrics?.live_predictions || '—' },
+          { label: 'Retrain Date', val: metrics?.retrain_date ? fmtDateTime(metrics.retrain_date) : '—' },
         ].map(({ label, val }) => (
-          <div key={label} className="card" style={{ flex: 1, minWidth: 140, padding: '12px 16px' }}>
+          <div key={label} className="card" style={{ padding: '12px 16px' }}>
             <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>{label}</div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{val}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', wordBreak: 'break-all' }}>{val}</div>
           </div>
         ))}
       </div>
