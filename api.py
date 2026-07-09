@@ -10,12 +10,25 @@ from core.engine.continuous_learning import ContinuousLearningEngine
 from core.engine.ancient_engine import AncientPredictionEngine
 
 CRICAPI_KEY = os.environ.get("CRICAPI_KEY", "bd50097b-082d-4d9d-88aa-b0e47a1bb9cc")
+CRON_SECRET_TOKEN = os.environ.get("CRON_SECRET_TOKEN", "default-insecure-token")
 ancient_engine = AncientPredictionEngine()
+
+# Configure structured logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='{"time": "%(asctime)s", "level": "%(levelname)s", "message": "%(message)s"}'
+)
 
 app = FastAPI(title="GlobalPulse Prediction API", version="4.0")
 
 # Mount frontend directory so user can access it via localhost:8000/frontend/index.html
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
+
+from fastapi import Header
+def verify_cron_token(x_cron_token: str = Header(None)):
+    if x_cron_token != CRON_SECRET_TOKEN:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return True
 
 @app.get("/")
 def root():
@@ -162,17 +175,48 @@ def get_all_models():
     return {"models": result}
 
 
-
-@app.post("/verify")
-def verify_prediction(request: VerificationRequest):
+@app.post("/internal/verify")
+def internal_verify(request: VerificationRequest, authorized: bool = __import__('fastapi').Depends(verify_cron_token)):
     """
-    Verifies a past prediction, updates feature usefulness, and triggers continuous retraining.
+    Internal cron endpoint to verify a past prediction.
     """
     try:
+        logging.info(f"Internal Verify triggered for {request.prediction_id}")
         result = learning_engine.verify_and_retrain(request.prediction_id, request.actual_winner)
         return result
     except Exception as e:
-        logging.error(f"Verification error: {e}")
+        logging.error(f"Internal Verification error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/internal/predict")
+def internal_predict(request: MatchRequest, authorized: bool = __import__('fastapi').Depends(verify_cron_token)):
+    """
+    Internal cron endpoint to trigger prediction logic.
+    """
+    try:
+        logging.info(f"Internal Predict triggered for {request.match_id}")
+        result = learning_engine.predict_future_match(request.dict())
+        return result
+    except Exception as e:
+        logging.error(f"Internal Prediction error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/system/status")
+def system_status():
+    from core.memory.schema import DBModelRegistry
+    try:
+        with Session(engine) as session:
+            champion = session.query(DBModelRegistry).filter_by(is_champion=True).first()
+            return {
+                "champion_model_version": champion.id if champion else None,
+                "dataset_version": "v1.0",
+                "last_retrain": "TBD",
+                "last_prediction": "TBD",
+                "active_feature_families": champion.feature_families if champion else None,
+                "git_commit_hash": os.environ.get("RAILWAY_GIT_COMMIT_SHA") or os.environ.get("K_REVISION") or "unknown",
+                "api_version": app.version
+            }
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 # ── Ancient Prediction Endpoints ──────────────────────────────────────────

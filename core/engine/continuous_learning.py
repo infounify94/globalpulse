@@ -28,30 +28,19 @@ class ContinuousLearningEngine:
         3. Generates probability and confidence score.
         4. Logs prediction to the database.
         """
-        # Step 1: Find the Best Model historically
-        with Session(self.engine) as session:
-            # Filter for valid artifact paths and find the champion
-            best_model_record = session.query(DBModelRegistry).filter(
-                DBModelRegistry.model_artifact_path.isnot(None),
-                DBModelRegistry.is_champion == True
-            ).order_by(
-                DBModelRegistry.test_end_year.desc()
-            ).first() 
-            
-            # Fallback if no champion is explicitly marked but valid models exist
-            if not best_model_record:
-                best_model_record = session.query(DBModelRegistry).filter(
-                    DBModelRegistry.model_artifact_path.isnot(None)
-                ).order_by(
-                    DBModelRegistry.test_end_year.desc()
-                ).first()
-            
-            if not best_model_record:
-                raise ValueError("No trained models found in the Registry.")
-                
+        # Step 1: Find the Best Model using ModelManager
+        from core.engine.model_manager import ModelManager
+        model_mgr = ModelManager()
+        try:
+            model, best_model_record = model_mgr.get_champion_model(str(self.engine.url))
             model_id = best_model_record.id
             algorithm = best_model_record.algorithm
-            artifact_path = best_model_record.model_artifact_path
+        except Exception as e:
+            raise ValueError(f"Could not load champion model: {e}")
+        
+        with Session(self.engine) as session:
+            
+
             
             # Step 2: Extract Real Features!
             # Instead of random noise, we now dynamically calculate the exact statistics 
@@ -81,13 +70,11 @@ class ContinuousLearningEngine:
             feat_df = pd.DataFrame([real_features]).fillna(0.0).select_dtypes(include=[np.number])
             X_live = feat_df.values
             
-            # Step 3: Load actual model weights from disk
+            # Step 3: Use the model to predict
             try:
-                import joblib
-                model = joblib.load(artifact_path)
                 prob = float(model.predict_proba(X_live)[0][1])
             except Exception as e:
-                logging.warning(f"Could not load model {artifact_path}: {e}. Using fallback probability.")
+                logging.warning(f"Could not predict with model: {e}. Using fallback probability.")
                 prob = float(np.random.rand())
             
             # Step 4: Confidence Calibration

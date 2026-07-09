@@ -17,9 +17,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application
 COPY . .
 
-# Expose port for FastAPI (8000)
-EXPOSE 8000
-
-# Railway will override the CMD based on railway.json for different services.
-# Default fallback:
-CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
+# Cloud Run injects the PORT environment variable. We use bash to expand it.
+CMD exec uvicorn api:app --host 0.0.0.0 --port ${PORT:-8000}

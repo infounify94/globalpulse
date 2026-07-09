@@ -1,0 +1,27 @@
+name: Scheduler
+
+on:
+  schedule:
+    - cron: '0 */4 * * *' # Every 4 hours for predictions
+    - cron: '30 2 * * *'  # Daily at 2:30 AM for verification
+  workflow_dispatch:      # Allow manual trigger
+
+jobs:
+  cron_job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Internal Predict
+        if: github.event.schedule == '0 */4 * * *' || github.event_name == 'workflow_dispatch'
+        run: |
+          curl -X POST "${{ secrets.API_BASE_URL }}/internal/predict" \
+            -H "Content-Type: application/json" \
+            -H "x-cron-token: ${{ secrets.CRON_SECRET_TOKEN }}" \
+            -d '{"match_id": "auto", "sport": "cricket", "match_type": "auto", "date": "auto", "venue": "auto", "team_a": "auto", "team_b": "auto"}'
+            
+      - name: Trigger Internal Verify
+        if: github.event.schedule == '30 2 * * *' || github.event_name == 'workflow_dispatch'
+        run: |
+          curl -X POST "${{ secrets.API_BASE_URL }}/internal/verify" \
+            -H "Content-Type: application/json" \
+            -H "x-cron-token: ${{ secrets.CRON_SECRET_TOKEN }}" \
+            -d '{"prediction_id": "auto", "actual_winner": "auto"}'
