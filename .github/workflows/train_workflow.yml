@@ -2,7 +2,7 @@ name: Train Champion Model
 
 on:
   schedule:
-    - cron: "0 2 * * 0" # Every Sunday at 2 AM
+    - cron: "0 0 * * 0" # Weekly on Sunday
   workflow_dispatch:
 
 jobs:
@@ -22,8 +22,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Retraining
-        env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      - name: Run Training Pipeline
         run: |
-          python core/run_train.py
+          python core/actions/run_train.py

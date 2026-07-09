@@ -9,8 +9,8 @@ from dotenv import load_dotenv
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
-url = os.environ.get("SUPABASE_URL", "https://placeholder.supabase.co")
-key = os.environ.get("SUPABASE_SERVICE_KEY", "placeholder")
+url = "https://qzmojqtejmdowkdctlxm.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF6bW9qcXRlam1kb3drZGN0bHhtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MzQyODgwNCwiZXhwIjoyMDk5MDA0ODA0fQ.SBOA0gNLvMLNJGW13fSS8uj8tb7KLvrbbUBDfSnNYUM"
 supabase: Client = create_client(url, key)
 
 def run():

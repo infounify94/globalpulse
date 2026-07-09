@@ -23,8 +23,5 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Verification
-        env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          CRICAPI_KEY: ${{ secrets.CRICAPI_KEY }}
         run: |
-          python core/run_verify.py
+          python core/actions/run_verify.py

@@ -23,9 +23,9 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Predictions
-        env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          CRICAPI_KEY: ${{ secrets.CRICAPI_KEY }}
-          OPENWEATHER_KEY: ${{ secrets.OPENWEATHER_KEY }}
         run: |
-          python core/run_predict.py
+          python core/actions/run_predict.py
+
+      - name: Verify Pipeline Health
+        run: |
+          python core/actions/verify_pipeline.py
