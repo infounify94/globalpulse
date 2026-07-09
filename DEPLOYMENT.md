@@ -71,25 +71,27 @@ GitHub needs access to your secrets so it can deploy your code and run the cron 
 Google Cloud Run will host your prediction API for free.
 
 1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
-2. Create a new project (e.g., `globalpulse-backend`).
-3. Search for **Cloud Run** and enable the API.
-4. Click **Create Service**.
-5. Select **Continuously deploy new revisions from a source repository**.
-6. Click **Set up with Cloud Build** and authorize GitHub.
+2. Make sure you have created or selected a project (e.g., `globalpulse-backend`) from the top left dropdown.
+3. Search for **Cloud Run** in the top search bar and click on it.
+4. On the Cloud Run overview page, look for the section **Deploy a web service**.
+5. Click the large **Connect repository** button.
+6. Click **Set up with Cloud Build** and authorize GitHub if prompted.
 7. Select your repository: `infounify94/globalpulse`.
-8. Under **Build Configuration**:
+8. Check the box to agree to the terms and click **Next**.
+9. Under **Build Configuration**:
    - Branch: `^master$` or `^main$` (whichever branch you are using).
    - Build Type: **Dockerfile** (Path: `/Dockerfile`).
-9. Under **Authentication**, select **Allow unauthenticated invocations**.
-10. Expand the **Container, Variables & Secrets, Connections, Security** section:
-    - Click **Variables & Secrets**.
-    - Add the following Environment Variables manually:
-      - `DATABASE_URL` (Paste the value)
-      - `SUPABASE_URL` (Paste the value)
-      - `SUPABASE_KEY` (Paste the value)
-      - `CRICAPI_KEY` (Paste the value)
-      - `CRON_SECRET_TOKEN` (Paste the value)
-11. Click **Create**.
+   - Click **Save**.
+10. Scroll down to the **Authentication** section and select **Allow unauthenticated invocations**.
+11. Expand the **Container, Variables & Secrets, Connections, Security** section:
+    - Click the **Variables & Secrets** tab.
+    - Click **Add Variable** and add these Environment Variables manually:
+      - Name: `DATABASE_URL` | Value: (Paste the value from Step 1)
+      - Name: `SUPABASE_URL` | Value: (Paste the value from Step 1)
+      - Name: `SUPABASE_KEY` | Value: (Paste the value from Step 1)
+      - Name: `CRICAPI_KEY` | Value: (Paste your CricAPI Key)
+      - Name: `CRON_SECRET_TOKEN` | Value: (Paste the random string from Step 2)
+12. Click **Create** (or **Deploy**).
 
 *Google Cloud Run will now build and deploy your Dockerfile. This may take 3-5 minutes. Once finished, it will give you a public URL (e.g., `https://globalpulse-xxx.a.run.app`).*
 
