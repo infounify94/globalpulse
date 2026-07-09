@@ -132,7 +132,8 @@ export default function DashboardPage() {
   const avgConf = metrics?.average_confidence ?? shadow?.average_confidence
 
   // Build model performance chart data from models list
-  const modelChartData = (models || []).slice(0, 8).map((m, i) => ({
+  const modelList = models?.models || (Array.isArray(models) ? models : [])
+  const modelChartData = modelList.slice(0, 8).map((m, i) => ({
     name: `Run ${i + 1}`,
     XGBoost: m.algorithm === 'XGBoost' ? (m.accuracy_mean || 0) * 100 : null,
     LightGBM: m.algorithm === 'LightGBM' ? (m.accuracy_mean || 0) * 100 : null,
@@ -283,7 +284,7 @@ export default function DashboardPage() {
             <a href="/models" style={{ fontSize: 12, color: '#3b5bdb', textDecoration: 'none' }}>View all →</a>
           </div>
           {modl ? <TableSkeleton rows={4} /> : (
-            (models || []).slice(0, 4).map((m, i) => (
+            modelList.slice(0, 4).map((m, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{m.algorithm}</div>

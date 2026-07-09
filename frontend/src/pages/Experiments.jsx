@@ -5,7 +5,7 @@ import { fmtDate } from '../utils/format'
 
 export default function ExperimentsPage() {
   const { data, isLoading } = useExperiments()
-  const experiments = data?.experiments || data || []
+  const experiments = data?.experiments || (Array.isArray(data) ? data : [])
 
   return (
     <DashboardLayout title="Experiments" subtitle="All training runs, hyperparameters, and evaluation metrics">

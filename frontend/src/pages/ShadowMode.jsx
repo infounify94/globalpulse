@@ -4,12 +4,13 @@ import { TableSkeleton } from '../components/ui/Skeleton'
 import { fmtDateTime } from '../utils/format'
 
 export default function ShadowModePage() {
-  const { data: predictions, isLoading } = useShadow()
+  const { data, isLoading } = useShadow()
+  const predictions = Array.isArray(data) ? data : []
 
-  const total   = (predictions || []).length
-  const correct = (predictions || []).filter(p => p.actual_winner && p.actual_winner === p.predicted_winner).length
-  const wrong   = (predictions || []).filter(p => p.actual_winner && p.actual_winner !== p.predicted_winner).length
-  const pending = (predictions || []).filter(p => !p.actual_winner).length
+  const total   = predictions.length
+  const correct = predictions.filter(p => p.actual_winner && p.actual_winner === p.predicted_winner).length
+  const wrong   = predictions.filter(p => p.actual_winner && p.actual_winner !== p.predicted_winner).length
+  const pending = predictions.filter(p => !p.actual_winner).length
   const acc     = total > 0 ? ((correct / (correct + wrong)) * 100).toFixed(1) : '—'
 
   return (
@@ -40,7 +41,7 @@ export default function ShadowModePage() {
               </tr>
             </thead>
             <tbody>
-              {(predictions || []).map((p, i) => (
+              {predictions.map((p, i) => (
                 <tr key={i}>
                   <td style={{ fontWeight: 600, fontSize: 12 }}>{p.event_id || '—'}</td>
                   <td style={{ color: '#3b5bdb', fontWeight: 600 }}>{p.predicted_winner || '—'}</td>
@@ -56,7 +57,7 @@ export default function ShadowModePage() {
                   <td style={{ color: '#94a3b8', fontSize: 12 }}>{fmtDateTime(p.prediction_timestamp)}</td>
                 </tr>
               ))}
-              {(!predictions || predictions.length === 0) && (
+              {predictions.length === 0 && (
                 <tr><td colSpan={6} style={{ textAlign: 'center', color: '#94a3b8', padding: 32 }}>No predictions stored yet.</td></tr>
               )}
             </tbody>

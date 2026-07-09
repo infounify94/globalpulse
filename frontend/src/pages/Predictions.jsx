@@ -23,7 +23,7 @@ export default function PredictionsPage() {
               </tr>
             </thead>
             <tbody>
-              {(matches || []).map((m, i) => {
+              {(Array.isArray(matches) ? matches : []).map((m, i) => {
                 const prob = m.team_a_probability ?? 0.5
                 const winner = prob > 0.5 ? m.team_a : m.team_b
                 const winProb = prob > 0.5 ? prob : 1 - prob
@@ -45,7 +45,7 @@ export default function PredictionsPage() {
                   </tr>
                 )
               })}
-              {(!matches || matches.length === 0) && (
+              {(!Array.isArray(matches) || matches.length === 0) && (
                 <tr><td colSpan={7} style={{ textAlign: 'center', color: '#94a3b8', padding: 32 }}>No upcoming matches found.</td></tr>
               )}
             </tbody>

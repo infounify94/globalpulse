@@ -15,7 +15,7 @@ export default function ModelsPage() {
               <tr><th>Status</th><th>Algorithm</th><th>Train Years</th><th>Test Year</th><th>Accuracy</th><th>Brier</th><th>Log Loss</th><th>AUC</th></tr>
             </thead>
             <tbody>
-              {(models?.models || models || []).map((m, i) => (
+              {(models?.models || (Array.isArray(models) ? models : [])).map((m, i) => (
                 <tr key={i}>
                   <td>{m.is_champion ? <span className="badge badge-success">🏆 Champion</span> : <span className="badge badge-info">Challenger</span>}</td>
                   <td style={{ fontWeight: 600 }}>{m.algorithm}</td>
@@ -27,7 +27,7 @@ export default function ModelsPage() {
                   <td>{m.auc_roc ? m.auc_roc.toFixed(4) : '—'}</td>
                 </tr>
               ))}
-              {(!models || (models?.models || models || []).length === 0) && (
+              {(!models || (models?.models || (Array.isArray(models) ? models : [])).length === 0) && (
                 <tr><td colSpan={8} style={{ textAlign: 'center', color: '#94a3b8', padding: 32 }}>No models in registry yet. Run the training pipeline.</td></tr>
               )}
             </tbody>
