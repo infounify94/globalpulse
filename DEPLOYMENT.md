@@ -14,11 +14,14 @@ We use Supabase to host our PostgreSQL database and store our trained machine le
    - Go to [Supabase](https://supabase.com/) and create a new project.
    - Wait for the database to provision.
 
-2. **Get Your Database Credentials**
-   - Go to **Project Settings** -> **Database**.
-   - Under **Connection String**, copy the URI. 
-   - Replace `[YOUR-PASSWORD]` with your actual password.
-   - *This is your `DATABASE_URL`*.
+2. **Get Your Database Credentials (DATABASE_URL)**
+   - In your Supabase dashboard, click the **Connect** button at the top (or go to Project Settings -> Database).
+   - Click the **Direct** or **ORM** tab.
+   - Under **Connection Method**, select **Transaction pooler** (this is best for Cloud Run because it's serverless).
+   - Leave **Type** as **URI**.
+   - Scroll down and copy the connection string provided. It will look like `postgresql://postgres.xxx...`.
+   - Replace `[YOUR-PASSWORD]` in that string with your actual Supabase database password.
+   - *This entire string is your `DATABASE_URL`.*
 
 3. **Get Your API Credentials**
    - Go to **Project Settings** -> **API**.
@@ -33,12 +36,15 @@ We use Supabase to host our PostgreSQL database and store our trained machine le
 
 ---
 
-## Step 2: Generate a Cron Secret Token
+## Step 2: Create a Cron Secret Token
 
-Your automated cron jobs (running on GitHub Actions) will securely ping your backend to trigger predictions and verifications. We need a secret token to protect these routes.
+Your automated cron jobs (running on GitHub Actions) will securely ping your backend to trigger predictions and verifications. We need a secret token (like a password) to protect these routes so random people on the internet can't trigger them.
 
-1. Generate a random, secure string (e.g., `gp_secret_998822xxYYzz!`).
-2. Save this somewhere safe. *This is your `CRON_SECRET_TOKEN`*.
+1. **You make this up yourself.** There is no website to generate this.
+2. Just open a notepad and type a random, long string of letters and numbers. 
+   - Example: `GlobalPulseSecretToken2026_xyz123`
+3. Save this string in your notepad for now. 
+4. *This string is your `CRON_SECRET_TOKEN`.* You will paste this exact same string into both GitHub Actions and Google Cloud Run later.
 
 ---
 
