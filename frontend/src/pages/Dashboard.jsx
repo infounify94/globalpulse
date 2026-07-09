@@ -132,7 +132,7 @@ export default function DashboardPage() {
   const avgConf = metrics?.average_confidence ?? shadow?.average_confidence
 
   // Build model performance chart data from models list
-  const modelList = models?.models || (Array.isArray(models) ? models : [])
+  const modelList = Array.isArray(models?.models) ? models.models : (Array.isArray(models) ? models : [])
   const modelChartData = modelList.slice(0, 8).map((m, i) => ({
     name: `Run ${i + 1}`,
     XGBoost: m.algorithm === 'XGBoost' ? (m.accuracy_mean || 0) * 100 : null,
@@ -141,7 +141,7 @@ export default function DashboardPage() {
   }))
 
   // Recent predictions
-  const recent = (shadow || []).slice(0, 6)
+  const recent = (Array.isArray(shadow) ? shadow : []).slice(0, 6)
 
   return (
     <DashboardLayout
@@ -268,9 +268,9 @@ export default function DashboardPage() {
             <a href="/predictions" style={{ fontSize: 12, color: '#3b5bdb', textDecoration: 'none' }}>View all →</a>
           </div>
           {mml ? <TableSkeleton rows={4} /> :
-            (matches || []).slice(0, 4).map((m, i) => <MatchRow key={i} match={m} />)
+            (Array.isArray(matches) ? matches : []).slice(0, 4).map((m, i) => <MatchRow key={i} match={m} />)
           }
-          {!mml && (!matches || matches.length === 0) && (
+          {!mml && (!Array.isArray(matches) || matches.length === 0) && (
             <div style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>
               No upcoming matches fetched yet.
             </div>
@@ -284,11 +284,11 @@ export default function DashboardPage() {
             <a href="/models" style={{ fontSize: 12, color: '#3b5bdb', textDecoration: 'none' }}>View all →</a>
           </div>
           {modl ? <TableSkeleton rows={4} /> : (
-            modelList.slice(0, 4).map((m, i) => (
+            (Array.isArray(modelList) ? modelList : []).slice(0, 4).map((m, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{m.algorithm}</div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>v{m.id?.slice(0, 6) || '—'} · Test {m.test_end_year}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>v{(m.id || '').toString().slice(0, 6) || '—'} · Test {m.test_end_year}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   {m.is_champion && <span className="badge badge-success" style={{ marginBottom: 4 }}>Champion</span>}

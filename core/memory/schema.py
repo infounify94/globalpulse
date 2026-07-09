@@ -188,7 +188,12 @@ class DBModelRegistry(Base):
     performance_metrics = Column(JSON, nullable=False)
     calibration_metrics = Column(JSON, nullable=False)
     execution_time_seconds = Column(Float, nullable=False)
-    model_artifact_path = Column(String, nullable=True)  # Path to .joblib file on disk
+    model_artifact_path = Column(String, nullable=True)  # Legacy path
+    storage_path = Column(String, nullable=True) # Supabase Storage path
+    checksum = Column(String, nullable=True)
+    model_version = Column(String, nullable=True)
+    dataset_version = Column(String, nullable=True)
+    training_date = Column(DateTime, nullable=True)
     is_champion = Column(Boolean, default=False)  # Is this the current production model?
     feature_families = Column(String, nullable=True)
     feature_importance = Column(JSON, nullable=True)

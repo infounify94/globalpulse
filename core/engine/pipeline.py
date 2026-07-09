@@ -265,6 +265,16 @@ class TrainingPipeline:
                         except Exception as e:
                             logging.warning(f"Could not calculate season metrics: {e}")
 
+                        import hashlib
+                        
+                        # Generate checksum
+                        checksum = ""
+                        try:
+                            with open(artifact_path, "rb") as f:
+                                checksum = hashlib.md5(f.read()).hexdigest()
+                        except Exception:
+                            pass
+                            
                         # Save Model to Registry
                         model_record = DBModelRegistry(
                             id=model_id,
@@ -278,6 +288,11 @@ class TrainingPipeline:
                             calibration_metrics={"calibration_error_ece": metrics.get("calibration_error_ece", 0)},
                             execution_time_seconds=exec_time,
                             model_artifact_path=artifact_path,
+                            storage_path=f"models/{model_id}.pkl",
+                            checksum=checksum,
+                            model_version="1.0.0",
+                            dataset_version=dataset_version,
+                            training_date=datetime.utcnow(),
                             is_champion=False,
                             feature_families=family,
                             feature_importance=feat_importances,
@@ -347,6 +362,24 @@ class TrainingPipeline:
                 champ = session.query(DBModelRegistry).filter_by(id=winning_model_id).first()
                 if champ:
                     champ.is_champion = True
+                    
+                    # Upload Champion to Supabase Storage
+                    supabase_url = os.environ.get("SUPABASE_URL")
+                    supabase_key = os.environ.get("SUPABASE_KEY")
+                    
+                    if supabase_url and supabase_key:
+                        try:
+                            from supabase import create_client, Client
+                            supabase: Client = create_client(supabase_url, supabase_key)
+                            with open(champ.model_artifact_path, "rb") as f:
+                                # Ensure bucket exists (or assume it does)
+                                supabase.storage.from_("models").upload(champ.storage_path, f, file_options={"content-type": "application/octet-stream", "upsert": "true"})
+                            logging.info(f"Champion model uploaded to Supabase Storage: {champ.storage_path}")
+                        except Exception as e:
+                            logging.error(f"Failed to upload Champion to Supabase Storage: {e}")
+                    else:
+                        logging.warning("SUPABASE_URL and SUPABASE_KEY not set. Skipping Champion upload to Supabase Storage.")
+
 
                 session.commit()
                 logging.info(f"Experiment {experiment_id} complete. Champion: {winning_model_id}")

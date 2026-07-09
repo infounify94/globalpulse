@@ -1,27 +1,58 @@
-import api from './client'
+import { supabase } from './supabaseClient'
 
 // Health
-export const fetchHealth   = () => api.get('/').then(r => r.data)
-export const fetchStatus   = () => api.get('/system/status').then(r => r.data)
+export const fetchHealth = async () => ({ status: 'ok', source: 'supabase' })
+export const fetchStatus = async () => ({ status: 'online', database: 'connected' })
 
-// Metrics / Shadow
-export const fetchMetrics  = () => api.get('/api/shadow_metrics').then(r => r.data)
-export const fetchShadow   = () => api.get('/api/shadow_predictions').then(r => r.data)
+// Dashboard Summary (Precomputed)
+export const fetchMetrics = async () => {
+  const { data, error } = await supabase.from('dashboard_summary').select('*').limit(1)
+  if (error) throw error
+  return data?.[0] || {}
+}
+export const fetchShadow = async () => {
+  const { data } = await supabase.from('shadow_predictions').select('*').limit(100)
+  return data || []
+}
 
-// Upcoming matches with predictions
-export const fetchMatches  = (params) => api.get('/api/matches/upcoming', { params }).then(r => r.data)
+// Upcoming matches with predictions (Read from prediction_store where is_correct is null)
+export const fetchMatches = async () => {
+  const { data, error } = await supabase
+    .from('prediction_store')
+    .select('*')
+    .is('is_correct', null)
+    .order('prediction_timestamp', { ascending: false })
+    .limit(50)
+  
+  if (error) throw error
+  return data || []
+}
 
 // Models leaderboard
-export const fetchModels   = () => api.get('/api/models').then(r => r.data)
+export const fetchModels = async () => {
+  const { data, error } = await supabase
+    .from('model_registry')
+    .select('*')
+    .order('test_start_year', { ascending: false })
+  
+  if (error) throw error
+  return data || []
+}
 
-// Experiments
-export const fetchExperiments = () => api.get('/api/experiments').then(r => r.data)
+// Historical replay (Completed predictions)
+export const fetchHistory = async () => {
+  const { data, error } = await supabase
+    .from('prediction_store')
+    .select('*')
+    .not('is_correct', 'is', null)
+    .order('verified_time', { ascending: false })
+    .limit(100)
+    
+  if (error) throw error
+  return data || []
+}
 
-// Feature importance
-export const fetchFeatures = () => api.get('/api/features').then(r => r.data)
-
-// Historical replay
-export const fetchHistory  = () => api.get('/api/history').then(r => r.data)
-
-// Predict a specific match
-export const predictMatch  = (data) => api.post('/predict', data).then(r => r.data)
+// Not supported in V2 (Handled via GitHub Actions)
+export const fetchExperiments = async () => []
+export const fetchFeatures = async () => []
+export const predictMatch = async () => ({ error: 'Predictions are generated via scheduled backend jobs' })

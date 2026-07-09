@@ -6,6 +6,7 @@ import ShadowModePage from './pages/ShadowMode'
 import ModelsPage from './pages/Models'
 import ExperimentsPage from './pages/Experiments'
 import FeatureImportancePage from './pages/FeatureImportance'
+import ErrorBoundary from './components/ErrorBoundary'
 import {
   PatternMemoryPage, HistoricalReplayPage,
   ResearchPage, AlertsPage, SettingsPage
@@ -14,18 +15,21 @@ import {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 3,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      retry: 2,
+      staleTime: 60000,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
     },
   },
 })
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/"           element={<Dashboard />} />
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/"           element={<Dashboard />} />
           <Route path="/predictions" element={<PredictionsPage />} />
           <Route path="/shadow"     element={<ShadowModePage />} />
           <Route path="/models"     element={<ModelsPage />} />
@@ -37,7 +41,8 @@ export default function App() {
           <Route path="/alerts"     element={<AlertsPage />} />
           <Route path="/settings"   element={<SettingsPage />} />
         </Routes>
-      </BrowserRouter>
-    </QueryClientProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ErrorBoundary>
   )
 }

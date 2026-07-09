@@ -1,0 +1,30 @@
+name: Verify Predictions
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # Daily at Midnight
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Verification
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          CRICAPI_KEY: ${{ secrets.CRICAPI_KEY }}
+        run: |
+          python core/run_verify.py

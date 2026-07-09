@@ -6,10 +6,17 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGri
 export default function FeatureImportancePage() {
   const { data, isLoading } = useFeatures()
 
-  const features = (data?.top_features || data || []).slice(0, 15).map(f => ({
-    name: f.feature || f.name || '—',
-    importance: parseFloat(f.importance || f.value || 0).toFixed(4)
-  }))
+  const features = Array.isArray(data?.top_features) 
+    ? data.top_features.slice(0, 15).map(f => ({
+        name: f.feature || f.name || '—',
+        importance: parseFloat(f.importance || f.value || 0).toFixed(4)
+      }))
+    : Array.isArray(data)
+      ? data.slice(0, 15).map(f => ({
+          name: f.feature_name || f.feature || f.name || '—',
+          importance: parseFloat(f.baseline_importance || f.importance || f.value || 0).toFixed(4)
+        }))
+      : []
 
   return (
     <DashboardLayout title="Feature Importance" subtitle="SHAP and permutation-based feature rankings">
