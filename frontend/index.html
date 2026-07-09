@@ -31,6 +31,9 @@
                 <a href="#" class="nav-item" data-page="ancient">
                     <i class="fas fa-star-and-crescent"></i> 🔮 Ancient Engine
                 </a>
+                <a href="#" class="nav-item shadow-mode-btn" data-page="shadow">
+                    <i class="fas fa-satellite-dish"></i> 🔴 Shadow Mode
+                </a>
             </nav>
             <div class="sidebar-footer">
                 <p><span class="status-indicator"></span> Model Status: <strong>Online</strong></p>
@@ -150,9 +153,44 @@
                 </div>
             </section>
 
+            <!-- Page: Shadow Mode -->
+            <section id="page-shadow" class="page-content hidden">
+                <div class="feed-header ancient-header">
+                    <h2>🔴 Live Shadow Mode</h2>
+                    <p class="subtitle">Blind Future Validation & Real-World Trading</p>
+                </div>
+                
+                <!-- Metrics Dashboard -->
+                <div class="metrics-dashboard" id="shadow-metrics-container">
+                    <div class="metric-card">
+                        <div class="metric-title">Rolling 50-Match Accuracy</div>
+                        <div class="metric-value" id="sm-acc-50">--</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-title">Brier Score</div>
+                        <div class="metric-value" id="sm-brier">--</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-title">Simulated ROI</div>
+                        <div class="metric-value" id="sm-roi">--</div>
+                    </div>
+                </div>
+
+                <div class="feed-header" style="margin-top:2rem;">
+                    <h3>Upcoming Predictions (Immutable)</h3>
+                    <p class="subtitle">These predictions are locked and sealed before the match begins.</p>
+                </div>
+                
+                <div id="shadow-loader" class="loader-container">
+                    <div class="spinner" style="border-top-color:#e11d48"></div>
+                    <p style="color:#e11d48">Fetching shadow vault...</p>
+                </div>
+                
+                <div id="shadow-predictions-grid" class="matches-grid hidden"></div>
+            </section>
+
         </main>
     </div>
-
     <script src="script.js"></script>
 </body>
 </html>

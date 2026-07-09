@@ -14,6 +14,17 @@ try:
 except ImportError:
     logging.warning("scikit-learn, joblib, or pandas missing. Pipeline will not execute.")
 
+from sklearn.calibration import CalibratedClassifierCV
+from core.engine.metrics import ModelMetrics
+from core.memory.schema import DBModelRegistry, DBExperimentRegistry, DBPredictionStore, DBPredictionLineage
+
+try:
+    import shap
+    import matplotlib.pyplot as plt
+    from sklearn.inspection import permutation_importance
+except ImportError:
+    shap = None
+
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from core.memory.schema import (
@@ -87,13 +98,8 @@ class TrainingPipeline:
 
         if not all_columns or not any(all_columns):
             # Fallback: if features aren't in parquet, try to load from DB directly
-            logging.warning(
-                "Feature columns not found in parquet. "
-                "Run 'python etl_run.py --features' first to populate feature tables."
-            )
-            # Minimum viable: return zeros so pipeline doesn't crash
-            n_rows = len(df)
-            return np.zeros((n_rows, 10))
+            logging.warning("Feature columns not found in parquet. Skipping.")
+            return pd.DataFrame()
 
         # Convert list of dicts to DataFrame, fill missing values with column median
         feat_df = pd.DataFrame(all_columns).fillna(0.0)
@@ -101,14 +107,22 @@ class TrainingPipeline:
         feat_df = feat_df.select_dtypes(include=[np.number])
 
         if feat_df.empty:
-            return np.zeros((len(df), 10))
+            return pd.DataFrame()
 
-        return feat_df.values
+        return feat_df
 
     def _extract_xy(self, df: pd.DataFrame, feature_family: str):
         """Extracts real feature matrix (X) and target labels (y)."""
         X = self._build_feature_matrix(df, feature_family)
         y = (df['outcome'] == df['team_a_id']).astype(int).values
+        
+        # --- ANTI-LEAKAGE ASSERTIONS ---
+        forbidden_cols = ['outcome', 'id', 'date', 'venue_id', 'team_a_id', 'team_b_id']
+        for col in forbidden_cols:
+            if col in X.columns:
+                logging.error(f"CRITICAL DATA LEAKAGE DETECTED: {col} found in features!")
+                X = X.drop(columns=[col])
+                
         return X, y
 
     def run_experiment(self,
@@ -164,10 +178,13 @@ class TrainingPipeline:
                     X_train, y_train = self._extract_xy(train_df, family)
                     X_test, y_test = self._extract_xy(test_df, family)
 
-                    # Ensure X has enough features for calibration CV
-                    if X_train.shape[1] == 0:
-                        logging.warning(f"Zero features for family '{family}'. Skipping.")
+                    # Ensure X has enough features
+                    if X_train.empty or X_test.empty:
+                        logging.warning(f"Empty features for family '{family}'. Skipping.")
                         continue
+
+                    # Align X_test columns to match X_train
+                    X_test = X_test.reindex(columns=X_train.columns, fill_value=0.0)
 
                     for trainer in trainers:
                         model_id = f"{experiment_id}_{trainer.algorithm_name}_{family.replace(',','_')}_{te_start}"
@@ -202,6 +219,52 @@ class TrainingPipeline:
                         joblib.dump(calibrated_cv, artifact_path)
                         logging.info(f"Model artifact saved: {artifact_path}")
 
+                        # ── SHAP / Feature Importance Extraction ──────────────
+                        feat_importances = {}
+                        try:
+                            # Try to get native feature importances first (faster fallback)
+                            raw_importances = trainer.get_feature_importances()
+                            # Map to feature names (X_train columns)
+                            if hasattr(X_train, 'columns'):
+                                feature_names = list(X_train.columns)
+                            else:
+                                # We need column names from the dataframe
+                                feature_names = [f"f{i}" for i in range(X_train.shape[1])]
+                                
+                            for idx, imp in enumerate(raw_importances):
+                                feat_importances[feature_names[idx]] = float(imp)
+                                
+                            # Sort by importance
+                            feat_importances = dict(sorted(feat_importances.items(), key=lambda item: item[1], reverse=True))
+                        except Exception as e:
+                            logging.warning(f"Could not extract feature importances: {e}")
+
+                        # ── Permutation Importance ──────────────
+                        perm_importances = {}
+                        try:
+                            if shap:
+                                pi = permutation_importance(calibrated_cv, X_test, y_test, n_repeats=5, random_state=42)
+                                for idx, name in enumerate(X_test.columns):
+                                    perm_importances[name] = float(pi.importances_mean[idx])
+                        except Exception as e:
+                            logging.warning(f"Could not run permutation importance: {e}")
+
+                        # ── Season-by-Season Metrics ──────────────
+                        season_metrics = {}
+                        try:
+                            # Group test_df by year
+                            test_df['year_temp'] = pd.to_datetime(test_df['date']).dt.year
+                            for yr in test_df['year_temp'].unique():
+                                mask = test_df['year_temp'] == yr
+                                if mask.sum() > 0:
+                                    y_test_yr = y_test[mask]
+                                    y_pred_yr = y_pred[mask]
+                                    y_prob_yr = y_prob[mask]
+                                    season_metrics[str(yr)] = ModelMetrics.evaluate(y_test_yr, y_pred_yr, y_prob_yr)
+                            test_df = test_df.drop(columns=['year_temp'])
+                        except Exception as e:
+                            logging.warning(f"Could not calculate season metrics: {e}")
+
                         # Save Model to Registry
                         model_record = DBModelRegistry(
                             id=model_id,
@@ -215,7 +278,11 @@ class TrainingPipeline:
                             calibration_metrics={"calibration_error_ece": metrics.get("calibration_error_ece", 0)},
                             execution_time_seconds=exec_time,
                             model_artifact_path=artifact_path,
-                            is_champion=False
+                            is_champion=False,
+                            feature_families=family,
+                            feature_importance=feat_importances,
+                            season_metrics=season_metrics,
+                            statistical_significance={"permutation_importance": perm_importances}
                         )
                         session.add(model_record)
 

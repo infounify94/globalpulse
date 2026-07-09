@@ -43,11 +43,21 @@ class WalkForwardDatasetGenerator:
                 e.id, e.date, e.venue_id, e.outcome,
                 m.team_a_id, m.team_b_id,
                 fs.features as stat_features,
-                fa.features as astro_features
+                fa.features as astro_features,
+                fe.features as env_features,
+                fv.features as vedic_features,
+                fb.features as babylonian_features,
+                fn.features as numerology_features,
+                fp.features as pancha_bhuta_features
             FROM events e
             JOIN cricket_match_metadata m ON e.id = m.event_id
             LEFT JOIN features_statistics fs ON e.id = fs.event_id
             LEFT JOIN features_astronomy fa ON e.id = fa.event_id
+            LEFT JOIN features_environment fe ON e.id = fe.event_id
+            LEFT JOIN features_vedic fv ON e.id = fv.event_id
+            LEFT JOIN features_babylonian fb ON e.id = fb.event_id
+            LEFT JOIN features_numerology fn ON e.id = fn.event_id
+            LEFT JOIN features_pancha_bhuta fp ON e.id = fp.event_id
             WHERE e.event_type = 'cricket'
             """
             
@@ -57,7 +67,7 @@ class WalkForwardDatasetGenerator:
             
             # Expand JSON features into columns if needed, but for now we just
             # want to slice the main DataFrame chronologically
-            df['date'] = pd.to_datetime(df['date'])
+            df['date'] = pd.to_datetime(df['date'], format='mixed', errors='coerce')
             df['year'] = df['date'].dt.year
             
             for split in splits:

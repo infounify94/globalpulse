@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os, uvicorn, logging, joblib
@@ -13,6 +14,13 @@ ancient_engine = AncientPredictionEngine()
 
 app = FastAPI(title="GlobalPulse Prediction API", version="4.0")
 
+# Mount frontend directory so user can access it via localhost:8000/frontend/index.html
+app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
+
+@app.get("/")
+def root():
+    return RedirectResponse(url="/frontend/index.html")
+
 # Add CORS so Cloudflare Pages frontend can call the API
 app.add_middleware(
     CORSMiddleware,
@@ -23,7 +31,7 @@ app.add_middleware(
 )
 
 # Setup DB
-db_url = os.environ.get("GLOBALPULSE_DB_URL", "sqlite:///globalpulse_dev.db")
+db_url = os.environ.get("DATABASE_URL") or os.environ.get("SUPABASE_DB_URL") or os.environ.get("GLOBALPULSE_DB_URL", "sqlite:///globalpulse_dev.db")
 engine = get_engine(db_url)
 create_tables(engine)
 learning_engine = ContinuousLearningEngine(engine, pipeline=None)
@@ -53,9 +61,13 @@ def readiness_check():
     try:
         with engine.connect() as conn:
             conn.execute(__import__('sqlalchemy').text("SELECT 1"))
-        return {"status": "ready"}
+        return {"status": "ready", "database": db_url.split(":")[0]}
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database not ready: {e}")
+
+@app.get("/version")
+def get_version():
+    return {"version": "1.0.0", "status": "production"}
 
 @app.post("/predict")
 def predict_match(request: MatchRequest):
@@ -131,15 +143,22 @@ def get_all_models():
                 "id": m.id,
                 "algorithm": m.algorithm,
                 "feature_family": getattr(m, 'feature_families', m.algorithm),
-                "train_years": f"{m.train_start_year}–{m.train_end_year}",
-                "test_year": m.test_end_year,
+                "train_years": f"{m.train_start_year}-{m.train_end_year}",
+                "test_years": f"{m.test_start_year}-{m.test_end_year}",
                 "is_champion": getattr(m, 'is_champion', False),
                 "artifact_ready": artifact_exists,
                 "accuracy": metrics.get("accuracy", None),
                 "brier_score": metrics.get("brier_score", None),
                 "log_loss": metrics.get("log_loss", None),
                 "artifact_path": m.model_artifact_path,
+                "feature_importance": getattr(m, 'feature_importance', {}),
+                "season_metrics": getattr(m, 'season_metrics', {}),
+                "statistical_significance": getattr(m, 'statistical_significance', {}),
             })
+            
+        # Optional: return top 10 models for leaderboard
+        result = sorted(result, key=lambda x: x["accuracy"] or 0, reverse=True)[:10]
+        
     return {"models": result}
 
 
@@ -294,6 +313,44 @@ def ancient_live_matches():
 
     return {"count": len(results), "predictions": results}
 
+@app.get("/api/shadow_predictions")
+def get_shadow_predictions():
+    from sqlalchemy.orm import Session
+    from core.memory.schema import DBShadowPrediction
+    
+    with Session(engine) as session:
+        preds = session.query(DBShadowPrediction).order_by(DBShadowPrediction.date.desc()).limit(100).all()
+        return [{
+            "match_id": p.match_id,
+            "date": p.date.isoformat() if p.date else None,
+            "team_a": p.team_a,
+            "team_b": p.team_b,
+            "predicted_winner": p.predicted_winner,
+            "probability": p.probability,
+            "confidence_bucket": p.confidence_bucket,
+            "top_shap_features": p.top_shap_features,
+            "actual_winner": p.actual_winner,
+            "verified_time": p.verified_time.isoformat() if p.verified_time else None
+        } for p in preds]
+
+@app.get("/api/shadow_metrics")
+def get_shadow_metrics():
+    from sqlalchemy.orm import Session
+    from core.memory.schema import DBShadowMetric
+    
+    with Session(engine) as session:
+        metric = session.query(DBShadowMetric).order_by(DBShadowMetric.timestamp.desc()).first()
+        if not metric:
+            return {}
+        return {
+            "overall_accuracy": metric.overall_accuracy,
+            "rolling_50_accuracy": metric.rolling_50_accuracy,
+            "rolling_100_accuracy": metric.rolling_100_accuracy,
+            "brier_score": metric.brier_score,
+            "log_loss": metric.log_loss,
+            "roi": metric.roi,
+            "timestamp": metric.timestamp.isoformat() if metric.timestamp else None
+        }
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

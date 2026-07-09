@@ -51,6 +51,10 @@ class DBEvent(Base):
     statistics = relationship("DBFeatureStatistics", back_populates="event", uselist=False)
     astronomy = relationship("DBFeatureAstronomy", back_populates="event", uselist=False)
     environment = relationship("DBFeatureEnvironment", back_populates="event", uselist=False)
+    vedic = relationship("DBFeatureVedic", back_populates="event", uselist=False)
+    babylonian = relationship("DBFeatureBabylonian", back_populates="event", uselist=False)
+    numerology = relationship("DBFeatureNumerology", back_populates="event", uselist=False)
+    pancha_bhuta = relationship("DBFeaturePanchaBhuta", back_populates="event", uselist=False)
     vector = relationship("DBFeatureVector", back_populates="event", uselist=False)
 
 class DBCricketMatchMetadata(Base):
@@ -112,6 +116,30 @@ class DBFeatureEnvironment(Base):
     
     event = relationship("DBEvent", back_populates="environment")
 
+class DBFeatureVedic(Base):
+    __tablename__ = 'features_vedic'
+    event_id = Column(String, ForeignKey('events.id'), primary_key=True)
+    features = Column(JSON, nullable=False, default={})
+    event = relationship("DBEvent", back_populates="vedic")
+
+class DBFeatureBabylonian(Base):
+    __tablename__ = 'features_babylonian'
+    event_id = Column(String, ForeignKey('events.id'), primary_key=True)
+    features = Column(JSON, nullable=False, default={})
+    event = relationship("DBEvent", back_populates="babylonian")
+
+class DBFeatureNumerology(Base):
+    __tablename__ = 'features_numerology'
+    event_id = Column(String, ForeignKey('events.id'), primary_key=True)
+    features = Column(JSON, nullable=False, default={})
+    event = relationship("DBEvent", back_populates="numerology")
+
+class DBFeaturePanchaBhuta(Base):
+    __tablename__ = 'features_pancha_bhuta'
+    event_id = Column(String, ForeignKey('events.id'), primary_key=True)
+    features = Column(JSON, nullable=False, default={})
+    event = relationship("DBEvent", back_populates="pancha_bhuta")
+
 class DBFeatureVector(Base):
     __tablename__ = 'feature_vectors'
     event_id = Column(String, ForeignKey('events.id'), primary_key=True)
@@ -162,6 +190,10 @@ class DBModelRegistry(Base):
     execution_time_seconds = Column(Float, nullable=False)
     model_artifact_path = Column(String, nullable=True)  # Path to .joblib file on disk
     is_champion = Column(Boolean, default=False)  # Is this the current production model?
+    feature_families = Column(String, nullable=True)
+    feature_importance = Column(JSON, nullable=True)
+    season_metrics = Column(JSON, nullable=True)
+    statistical_significance = Column(JSON, nullable=True)
 
 class DBPredictionStore(Base):
     """Stores every prediction generated during Walk-Forward validation."""
@@ -195,6 +227,46 @@ class DBPredictionLineage(Base):
     git_commit_hash = Column(String, nullable=True)        # Code version
     training_timestamp = Column(DateTime, nullable=True)   # When model was trained
     prediction_timestamp = Column(DateTime, nullable=False)
+
+class DBShadowPrediction(Base):
+    __tablename__ = 'shadow_predictions'
+    id = Column(String, primary_key=True)
+    match_id = Column(String, nullable=False, unique=True)
+    date = Column(DateTime, nullable=False)
+    team_a = Column(String, nullable=False)
+    team_b = Column(String, nullable=False)
+    predicted_winner = Column(String, nullable=False)
+    probability = Column(Float, nullable=False)
+    confidence_bucket = Column(String, nullable=True)
+    top_shap_features = Column(JSON, nullable=True)
+    actual_winner = Column(String, nullable=True) # Updated when match completes
+    verified_time = Column(DateTime, nullable=True)
+    snapshot_features = Column(JSON, nullable=True) # Store complete snapshot
+
+class DBPredictionAudit(Base):
+    __tablename__ = 'prediction_audit'
+    prediction_id = Column(String, ForeignKey('shadow_predictions.id'), primary_key=True)
+    created_at = Column(DateTime, nullable=False)
+    verified_at = Column(DateTime, nullable=True)
+    model_version = Column(String, nullable=False)
+    feature_version = Column(String, nullable=False)
+    dataset_version = Column(String, nullable=False)
+    prediction_hash = Column(String, nullable=False) # Tamper-evident hash
+    prediction_probability = Column(Float, nullable=False)
+    actual_result = Column(String, nullable=True)
+    verification_status = Column(String, nullable=False, default="PENDING")
+
+class DBShadowMetric(Base):
+    __tablename__ = 'shadow_metrics'
+    id = Column(String, primary_key=True)
+    timestamp = Column(DateTime, nullable=False)
+    overall_accuracy = Column(Float, nullable=True)
+    rolling_50_accuracy = Column(Float, nullable=True)
+    rolling_100_accuracy = Column(Float, nullable=True)
+    brier_score = Column(Float, nullable=True)
+    log_loss = Column(Float, nullable=True)
+    roi = Column(Float, nullable=True)
+    calibration = Column(JSON, nullable=True)
 
 # Database setup helper
 def get_engine(db_url: str = None):

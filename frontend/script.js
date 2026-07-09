@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = "";
 
 let currentFilters = { match_type: "all", gender: "all", venue: "" };
 let currentPage = "upcoming";
@@ -26,6 +26,9 @@ function showPage(page) {
     document.getElementById("page-upcoming").classList.add("hidden");
     document.getElementById("page-analytics").classList.add("hidden");
     document.getElementById("page-ancient").classList.add("hidden");
+    const shadowPage = document.getElementById("page-shadow");
+    if(shadowPage) shadowPage.classList.add("hidden");
+    
     document.getElementById(`page-${page}`).classList.remove("hidden");
 
     // Show/hide top filter bar only for upcoming
@@ -35,6 +38,7 @@ function showPage(page) {
     if (page === "upcoming") fetchUpcomingMatches();
     if (page === "analytics") fetchModels();
     if (page === "ancient") initAncientPage();
+    if (page === "shadow") fetchShadowMode();
 }
 
 // ── Filters ────────────────────────────────────────────────────────────────
@@ -188,52 +192,126 @@ function renderAnalytics(models) {
         return;
     }
 
-    const champion = models.find(m => m.is_champion);
+    const champion = models.find(m => m.is_champion) || [...models].sort((a,b) => (b.accuracy || 0) - (a.accuracy || 0))[0];
     
+    // Sort models by accuracy descending for the leaderboard
+    const sortedModels = [...models].sort((a, b) => (b.accuracy || 0) - (a.accuracy || 0));
+
     let html = `
         <div class="analytics-header">
-            <div class="champion-card glass-panel">
-                <div class="champ-label">🏆 Champion Model</div>
+            <div class="champion-card glass-panel" style="width: 100%;">
+                <div class="champ-label">🏆 Ablation Leaderboard Champion</div>
                 <div class="champ-name">${champion ? algoLabel(champion.algorithm) : 'None'}</div>
-                <div class="champ-family">${champion ? familyLabel(champion.feature_family) : ''}</div>
-                <div class="champ-meta">Trained on data up to ${champion ? champion.train_years : 'N/A'}</div>
+                <div class="champ-family" style="font-size:1.2rem; margin-top:0.5rem; color:var(--primary)">
+                    ${champion ? champion.feature_family : ''}
+                </div>
+                <div class="champ-meta">
+                    Test Accuracy: <strong>${champion && champion.accuracy ? (champion.accuracy*100).toFixed(2) + '%' : 'N/A'}</strong> 
+                    | Trained on: ${champion ? champion.train_years : 'N/A'}
+                </div>
             </div>
         </div>
-        <h3 class="section-title">All Trained Models</h3>
-        <div class="models-table-wrap">
+
+        <h3 class="section-title">Ablation Study Leaderboard</h3>
+        <div class="models-table-wrap glass-panel" style="padding: 1rem; margin-bottom: 2rem;">
             <table class="models-table">
                 <thead>
                     <tr>
+                        <th>Rank</th>
                         <th>Algorithm</th>
-                        <th>Feature Set</th>
-                        <th>Training Period</th>
-                        <th>Test Year</th>
+                        <th>Feature Set (Ablation Variant)</th>
+                        <th>Accuracy</th>
+                        <th>Brier Score</th>
                         <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${models.map(m => `
-                    <tr class="${m.is_champion ? 'champion-row' : ''}">
-                        <td><span class="algo-badge ${m.algorithm}">${algoLabel(m.algorithm)}</span></td>
-                        <td>${familyLabel(m.feature_family)}</td>
-                        <td>${m.train_years}</td>
-                        <td>${m.test_year}</td>
+                    ${sortedModels.map((m, idx) => `
+                    <tr class="${idx === 0 ? 'champion-row' : ''}">
+                        <td>#${idx + 1}</td>
+                        <td>${algoLabel(m.algorithm)}</td>
+                        <td style="text-transform: capitalize;">${m.feature_family.replace(/_/g, ' ')}</td>
+                        <td style="font-weight: bold; color: ${idx===0 ? 'var(--primary)' : 'inherit'}">
+                            ${m.accuracy ? (m.accuracy * 100).toFixed(2) + '%' : 'N/A'}
+                        </td>
+                        <td>${m.brier_score ? m.brier_score.toFixed(4) : 'N/A'}</td>
                         <td>
-                            ${m.is_champion ? '<span class="badge-champion">Champion</span>' : ''}
+                            ${idx === 0 ? '<span class="badge-champion">Top Model</span>' : ''}
                             ${m.artifact_ready ? '<span class="badge-ready">✓ Loaded</span>' : '<span class="badge-missing">✗ Missing</span>'}
                         </td>
                     </tr>`).join('')}
                 </tbody>
             </table>
         </div>
-        <div class="accuracy-note glass-panel">
-            <h4>📊 How Predictions Work</h4>
-            <p>The Champion XGBoost + Astronomy model uses <strong>11 features per match</strong>:</p>
-            <ul>
-                <li><strong>Statistics (8 features):</strong> Team A/B win rates (last 5, 10, all-time), Head-to-Head win %, Venue win %, Elo ratings</li>
-                <li><strong>Astronomy (3+ features):</strong> Sun/Moon/Mars planetary positions, Tithi, Nakshatra from Swiss Ephemeris</li>
-            </ul>
-            <p>All stats are computed from <strong>16,000+ real historical cricket matches</strong> in the local database.</p>
+
+        <h3 class="section-title">📅 Season-by-Season Stability</h3>
+        <div class="models-table-wrap glass-panel" style="padding: 1rem; margin-bottom: 2rem;">
+            <p style="margin-bottom: 1rem; color:#9ca3af; font-size: 0.9rem;">
+                Tracking the Champion model's accuracy across individual test years to prove long-term consistency.
+            </p>
+            <table class="models-table">
+                <thead>
+                    <tr>
+                        <th>Season (Year)</th>
+                        <th>Test Accuracy</th>
+                        <th>Precision</th>
+                        <th>Recall</th>
+                        <th>Log Loss</th>
+                        <th>ECE (Calibration)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${champion && champion.season_metrics && Object.keys(champion.season_metrics).length > 0 ? 
+                        Object.entries(champion.season_metrics).sort().map(([year, met]) => `
+                        <tr>
+                            <td style="font-weight: bold; color:var(--primary)">${year}</td>
+                            <td>${met.accuracy ? (met.accuracy * 100).toFixed(2) + '%' : 'N/A'}</td>
+                            <td>${met.precision ? (met.precision * 100).toFixed(2) + '%' : 'N/A'}</td>
+                            <td>${met.recall ? (met.recall * 100).toFixed(2) + '%' : 'N/A'}</td>
+                            <td>${met.log_loss ? met.log_loss.toFixed(4) : 'N/A'}</td>
+                            <td>${met.calibration_error_ece ? met.calibration_error_ece.toFixed(4) : 'N/A'}</td>
+                        </tr>`).join('') 
+                    : '<tr><td colspan="6" style="text-align:center">No season data available.</td></tr>'}
+                </tbody>
+            </table>
+        </div>
+
+        <h3 class="section-title">🔍 Feature Importance (SHAP)</h3>
+        <div class="models-table-wrap glass-panel" style="padding: 1rem;">
+            <p style="margin-bottom: 1rem; color:#9ca3af; font-size: 0.9rem;">
+                Shows the most predictive features across the top model. Let the ML engine objectively score Ancient vs Statistical predictors.
+            </p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                <!-- Top Model Features -->
+                <div>
+                    <h4 style="margin-bottom: 0.5rem; color:var(--primary)">Top Model (${champion ? champion.feature_family.replace(/_/g, ' ') : ''})</h4>
+                    <div style="background:rgba(0,0,0,0.2); padding:1rem; border-radius:8px;">
+                        ${champion && champion.feature_importance ? 
+                            Object.entries(champion.feature_importance)
+                            .slice(0, 15) // top 15
+                            .map(([feat, score]) => `
+                                <div style="display:flex; justify-content:space-between; margin-bottom:0.4rem; font-size:0.85rem;">
+                                    <span style="color:#d1d5db">${feat}</span>
+                                    <span style="color:var(--primary)">${score.toFixed(4)}</span>
+                                </div>
+                                <div class="pred-bar-container" style="height:4px; margin-bottom:0.8rem; background:rgba(255,255,255,0.1)">
+                                    <div class="pred-bar-fill" style="width:${Math.min(100, score*100)}%; background:var(--primary)"></div>
+                                </div>
+                            `).join('') : '<p>No feature importance data available.</p>'
+                        }
+                    </div>
+                </div>
+                
+                <!-- Interpretation Note -->
+                <div>
+                    <h4 style="margin-bottom: 0.5rem; color:#a855f7">Objective Analysis</h4>
+                    <ul style="color:#d1d5db; font-size:0.9rem; line-height:1.6; list-style:disc; margin-left:1.5rem;">
+                        <li>If <strong style="color:var(--secondary)">statistics</strong> (win_pct, elo) dominate, it confirms traditional data science.</li>
+                        <li>If <strong style="color:var(--primary)">astronomy</strong> (moon_phase, tithi) rank highly, it proves non-linear correlations exist in planetary cycles.</li>
+                        <li>If <strong style="color:#f43f5e">vedic/babylonian</strong> (exaltation, retrogrades) appear in the top 10, it implies ancient omens mathematically correlate to match outcomes in XGBoost.</li>
+                    </ul>
+                </div>
+            </div>
         </div>`;
 
     container.innerHTML = html;
@@ -448,3 +526,79 @@ function createAncientLiveCard(item) {
         </div>`;
     return card;
 }
+
+// ── Shadow Mode Page ───────────────────────────────────────────────────────
+async function fetchShadowMode() {
+    const loader = document.getElementById("shadow-loader");
+    const grid = document.getElementById("shadow-predictions-grid");
+    
+    loader.classList.remove("hidden");
+    grid.classList.add("hidden");
+    grid.innerHTML = "";
+
+    try {
+        // Fetch Metrics
+        const metricsRes = await fetch(`${API_URL}/api/shadow_metrics`);
+        if (metricsRes.ok) {
+            const m = await metricsRes.json();
+            if (m.overall_accuracy !== undefined) {
+                document.getElementById("sm-acc-50").innerText = (m.rolling_50_accuracy * 100).toFixed(1) + "%";
+                document.getElementById("sm-brier").innerText = m.brier_score.toFixed(3);
+                document.getElementById("sm-roi").innerText = (m.roi * 100).toFixed(1) + "%";
+            }
+        }
+
+        // Fetch Predictions
+        const res = await fetch(`${API_URL}/api/shadow_predictions`);
+        if (!res.ok) throw new Error(`API error ${res.status}`);
+        const data = await res.json();
+
+        if (!data.length) {
+            grid.innerHTML = `<p class="no-results">No shadow predictions found yet. Ensure shadow_daemon.py is running.</p>`;
+        } else {
+            data.forEach(p => {
+                const probA = Math.round(p.probability * 100);
+                const probB = 100 - probA;
+                
+                let actualHtml = "";
+                if (p.actual_winner) {
+                    const isCorrect = p.actual_winner === p.predicted_winner;
+                    actualHtml = `<div style="margin-top:10px; color:${isCorrect ? '#10b981' : '#ef4444'}">
+                        <strong>Actual Winner:</strong> ${p.actual_winner} ${isCorrect ? '✅' : '❌'}
+                    </div>`;
+                } else {
+                    actualHtml = `<div style="margin-top:10px; color:#9ca3af; font-style:italic">Match Pending...</div>`;
+                }
+
+                const card = document.createElement("div");
+                card.className = "match-card";
+                card.style = "border: 1px solid rgba(225, 29, 72, 0.3); background: rgba(225, 29, 72, 0.05);";
+                card.innerHTML = `
+                    <div class="match-meta" style="color: #e11d48">
+                        <i class="fas fa-lock"></i> Locked & Sealed
+                    </div>
+                    <div class="match-teams" style="margin-top: 1rem;">
+                        <div class="team ${p.team_a === p.predicted_winner ? 'predicted-winner' : ''}">
+                            <div class="team-name">${p.team_a}</div>
+                            <div class="team-prob">${probA}%</div>
+                        </div>
+                        <div class="vs-badge" style="background:#e11d48">VS</div>
+                        <div class="team ${p.team_b === p.predicted_winner ? 'predicted-winner' : ''}">
+                            <div class="team-name">${p.team_b}</div>
+                            <div class="team-prob">${probB}%</div>
+                        </div>
+                    </div>
+                    <div class="venue-info"><i class="fas fa-calendar"></i> ${p.date.split('T')[0]}</div>
+                    ${actualHtml}
+                `;
+                grid.appendChild(card);
+            });
+        }
+    } catch (err) {
+        grid.innerHTML = `<p class="no-results" style="color:#e11d48">⚠️ ${err.message}</p>`;
+    } finally {
+        loader.classList.add("hidden");
+        grid.classList.remove("hidden");
+    }
+}
+
