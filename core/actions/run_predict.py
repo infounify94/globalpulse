@@ -247,17 +247,18 @@ def run():
         confidence = float(round(abs(prob - 0.5) * 2.0, 4))
 
         # Compute explainable Top Factors for UI dashboard
+        # All deltas computed from real feature values — NO hardcoded fallback strings
         factors = []
         f_5 = round((feats.get("stat_team_a_win_pct_5", 0.5) - feats.get("stat_team_b_win_pct_5", 0.5)) * 40.0, 1)
-        factors.append({"name": "Last 5 Form", "impact": f"{f_5:+g}%" if abs(f_5) >= 1 else "+14%"})
+        factors.append({"name": "Last 5 Form", "impact": f"{f_5:+.1f}%" if f_5 != 0 else "0.0%"})
         f_ven = round((feats.get("stat_venue_team_a_win_pct", 0.5) - feats.get("stat_venue_team_b_win_pct", 0.5)) * 30.0, 1)
-        factors.append({"name": "Venue Record", "impact": f"{f_ven:+g}%" if abs(f_ven) >= 1 else "+9%"})
+        factors.append({"name": "Venue Record", "impact": f"{f_ven:+.1f}%" if f_ven != 0 else "0.0%"})
         f_elo = round((feats.get("stat_team_a_elo", 1500) - feats.get("stat_team_b_elo", 1500)) / 12.0, 1)
-        factors.append({"name": "Elo Rating", "impact": f"{f_elo:+g}%" if abs(f_elo) >= 1 else "+11%"})
+        factors.append({"name": "Elo Rating", "impact": f"{f_elo:+.1f}%" if f_elo != 0 else "0.0%"})
         f_h2h = round((feats.get("stat_h2h_team_a_win_pct", 0.5) - 0.5) * 35.0, 1)
-        factors.append({"name": "Head-to-Head", "impact": f"{f_h2h:+g}%" if abs(f_h2h) >= 1 else "+7%"})
+        factors.append({"name": "Head-to-Head", "impact": f"{f_h2h:+.1f}%" if f_h2h != 0 else "0.0%"})
         f_anc = round((ancient_feats.get("anc_consensus_prob_a", 0.5) - 0.5) * 30.0, 1)
-        factors.append({"name": "Ancient Consensus", "impact": f"{f_anc:+g}%" if abs(f_anc) >= 1 else "+6%"})
+        factors.append({"name": "Ancient Consensus", "impact": f"{f_anc:+.1f}%" if f_anc != 0 else "0.0%"})
 
         ancient_summary = f"Consensus Prob {round(ancient_feats.get('anc_consensus_prob_a', 0.5)*100, 1)}% · Jyotish {round(ancient_feats.get('anc_jyotish_prob_a', 0.5)*100, 1)}%"
         pred_record = {
@@ -288,10 +289,15 @@ def run():
             new_predictions_count += 1
             
             # Record shadow predictions if challenger models exist
+            # Shadow probabilities come from the SAME feature vector — no random noise.
+            # Only the champion's calibrated probability is recorded; challenger model ID is noted.
             shadow_res = supabase.table("model_registry").select("model_version").eq("is_champion", False).limit(5).execute()
             for sm in (shadow_res.data or []):
                 sm_ver = sm["model_version"]
-                shadow_prob = max(0.01, min(0.99, prob + np.random.normal(0, 0.03)))
+                # Challenger uses the same real probability — no np.random perturbation
+                # Real challenger scores require challenger model artifacts to be loaded
+                # Until challenger inference is implemented, store champion probability with challenger model ID
+                shadow_prob = prob  # Real feature-derived probability, no fabrication
                 shadow_record = {
                     "match_id": match_id,
                     "model_id": sm_ver,
@@ -305,7 +311,7 @@ def run():
                     "confidence": float(round(abs(shadow_prob - 0.5) * 2.0, 4)),
                     "prediction_timestamp": datetime.utcnow().isoformat(),
                     "prediction_status": "PENDING",
-                    "top_shap_features": json.dumps({"shadow_version": sm_ver})
+                    "top_shap_features": json.dumps({"shadow_version": sm_ver, "note": "challenger_inference_pending"})
                 }
                 ex_s = supabase.table("shadow_predictions").select("id").eq("match_id", match_id).limit(1).execute()
                 if ex_s.data:
@@ -320,34 +326,35 @@ def run():
 
     # Dynamically update dashboard_snapshots with real calculated accuracy & ROI
     try:
-        ver_res = supabase.table("prediction_store").select("probability, predicted_winner_id, actual_winner_id").not_.is_("actual_winner_id", "null").limit(5000).execute()
+        ver_res = supabase.table("prediction_store").select("probability, predicted_winner_id, actual_winner_id").not_.is_("actual_winner_id", "null").eq("prediction_status", "VERIFIED").limit(5000).execute()
         verified = ver_res.data or []
-        if verified:
+        if not verified:
+            logging.warning("No verified predictions found — skipping dashboard_snapshots update.")
+        else:
             correct = sum(1 for v in verified if v["predicted_winner_id"] == v["actual_winner_id"])
             dyn_acc = float(round(correct / len(verified), 4))
             briers = [(float(v["probability"]) - (1.0 if v["predicted_winner_id"] == v["actual_winner_id"] else 0.0)) ** 2 for v in verified if v.get("probability") is not None]
-            dyn_brier = float(round(sum(briers) / len(briers), 4)) if briers else 0.142
+            dyn_brier = float(round(sum(briers) / len(briers), 4)) if briers else None
             dyn_roi = float(round((correct * 1.85 - len(verified)) / len(verified), 4))
-        else:
-            dyn_acc = 0.7911
-            dyn_brier = 0.1450
-            dyn_roi = 0.1250
 
-        supabase.table("dashboard_snapshots").insert({
-            "id": str(uuid.uuid4()),
-            "snapshot_time": datetime.utcnow().isoformat(),
-            "model_version": champion_version,
-            "accuracy": dyn_acc,
-            "brier": dyn_brier,
-            "roi": dyn_roi,
-            "confidence_calibration": float(round(1.0 - dyn_brier, 4)),
-            "live_predictions": new_predictions_count,
-            "dataset_version": "v1.0.2",
-            "drift_percentage": float(round(abs(dyn_acc - 0.7911) * 100, 2)),
-            "previous_champion": "v0.9.8",
-            "retrain_date": datetime.utcnow().isoformat(),
-        }).execute()
-        logging.info(f"dashboard_snapshots updated with dynamic metrics: acc={dyn_acc:.1%}, roi={dyn_roi:.1%}")
+            champ_ver_res = supabase.table("model_registry").select("model_version").eq("is_champion", True).limit(1).execute()
+            snap_model_version = champ_ver_res.data[0]["model_version"] if champ_ver_res.data else champion_version
+
+            supabase.table("dashboard_snapshots").insert({
+                "id": str(uuid.uuid4()),
+                "snapshot_time": datetime.utcnow().isoformat(),
+                "model_version": snap_model_version,
+                "accuracy": dyn_acc,
+                "brier": dyn_brier,
+                "roi": dyn_roi,
+                "confidence_calibration": float(round(1.0 - dyn_brier, 4)) if dyn_brier is not None else None,
+                "live_predictions": new_predictions_count,
+                "dataset_version": "v1.0.2",
+                "drift_percentage": 0.0,
+                "previous_champion": "v0.9.8",
+                "retrain_date": datetime.utcnow().isoformat(),
+            }).execute()
+            logging.info(f"dashboard_snapshots updated: acc={dyn_acc:.1%}, brier={dyn_brier}, roi={dyn_roi:.1%}")
     except Exception as e:
         logging.warning(f"Failed inserting dynamic dashboard snapshot: {e}")
 

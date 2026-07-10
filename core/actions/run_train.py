@@ -372,14 +372,46 @@ def run():
     
     correct_bets = sum(1 for yt, yp in zip(y_test, y_pred_class) if yt == yp)
     roi = float(round((correct_bets * 1.85 - len(y_test)) / max(len(y_test), 1), 4))
-    
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # STEP 8b: Per-season metrics from real test dates — no hardcoding
+    # Uses the test portion of valid_records (last 20% by chronological sort)
+    # ─────────────────────────────────────────────────────────────────────────
+    season_by_year = {}
+    try:
+        test_records_slice = valid_records[split_idx:]
+        for i, rec in enumerate(test_records_slice):
+            if i >= len(y_test):
+                break
+            raw_date = rec.get("date")
+            if isinstance(raw_date, str) and len(raw_date) >= 4:
+                yr = raw_date[:4]
+            elif hasattr(raw_date, "year"):
+                yr = str(raw_date.year)
+            else:
+                continue
+            if yr not in season_by_year:
+                season_by_year[yr] = {"correct": 0, "total": 0}
+            season_by_year[yr]["total"] += 1
+            if y_pred_class[i] == y_test[i]:
+                season_by_year[yr]["correct"] += 1
+        season_by_year = {
+            yr: {"accuracy": float(round(v["correct"] / v["total"], 4)), "n": v["total"]}
+            for yr, v in season_by_year.items() if v["total"] > 0
+        }
+        logging.info(f"  Season metrics: {season_by_year}")
+    except Exception as sm_err:
+        logging.warning(f"  Season metrics computation failed: {sm_err}")
+        season_by_year = {}
+
     logging.info(f"Hold-out Test Metrics:")
     logging.info(f"  Accuracy:  {accuracy:.4f} ({accuracy*100:.2f}%)")
     logging.info(f"  AUC-ROC:   {auc_roc:.4f}")
     logging.info(f"  Log Loss:  {log_loss_val:.4f}")
     logging.info(f"  Brier:     {brier:.4f}")
     logging.info(f"  ROI:       {roi:.4f}")
-    
+
+
     # ─────────────────────────────────────────────────────────────────────────
     # STEP 9: Feature importance from base XGBoost
     # ─────────────────────────────────────────────────────────────────────────
@@ -389,7 +421,66 @@ def run():
     logging.info("Top 10 Feature Importances:")
     for fname, fimp in sorted_imp[:10]:
         logging.info(f"  {fname}: {fimp:.4f}")
-    
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # STEP 9b: SHAP — mean absolute SHAP values per feature (real, not estimated)
+    # Writes to feature_importance table. shap_mean is None if SHAP fails — no fabrication.
+    # ─────────────────────────────────────────────────────────────────────────
+    shap_means = {}
+    try:
+        import shap as shap_lib
+        logging.info("Step 9b: Computing SHAP TreeExplainer values on test set...")
+        # Must pass the raw estimator — CalibratedClassifierCV wraps it
+        base_for_shap = model
+        if hasattr(model, "calibrated_classifiers_") and model.calibrated_classifiers_:
+            base_for_shap = model.calibrated_classifiers_[0].estimator
+        shap_explainer = shap_lib.TreeExplainer(base_for_shap)
+        X_shap = X_test[:2000]  # limit for speed; still statistically robust
+        shap_values = shap_explainer.shap_values(X_shap)
+        if isinstance(shap_values, list):
+            shap_values = shap_values[1]  # positive class for binary classification
+        mean_abs_shap = np.abs(shap_values).mean(axis=0)
+        shap_means = {fn: float(round(float(sv), 6)) for fn, sv in zip(feature_names, mean_abs_shap)}
+        logging.info(f"  SHAP computed for {len(shap_means)} features on {len(X_shap)} test rows.")
+        for fn, sv in sorted(shap_means.items(), key=lambda x: x[1], reverse=True)[:5]:
+            logging.info(f"    SHAP {fn}: {sv:.6f}")
+    except Exception as shap_err:
+        logging.warning(f"  SHAP computation failed (non-critical): {shap_err}")
+        shap_means = {}
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # STEP 9c: Store feature_importance rows to Supabase feature_importance table
+    # One row per feature. shap_mean is NULL in DB when SHAP failed — never fabricated.
+    # ─────────────────────────────────────────────────────────────────────────
+    fi_computed_at = datetime.utcnow().isoformat()
+    fi_model_tag = f"pending_{datetime.utcnow().strftime('%Y%m%d_%H%M')}"
+    fi_rows = []
+    for fname, fimp in sorted_imp:
+        ftype = (
+            "ancient" if fname.startswith("anc_") else
+            "astronomy" if fname.startswith("astro_") else
+            "environment" if fname.startswith("env_") else
+            "statistical"
+        )
+        fi_rows.append({
+            "id": str(uuid.uuid4()),
+            "model_version": fi_model_tag,  # updated to new_version after champion registration
+            "feature_name": fname,
+            "importance": fimp,
+            "shap_mean": shap_means.get(fname),  # None when SHAP unavailable
+            "feature_type": ftype,
+            "computed_at": fi_computed_at,
+        })
+    if fi_rows:
+        try:
+            supabase.table("feature_importance").delete().like("model_version", "pending_%").execute()
+            for i in range(0, len(fi_rows), 50):
+                supabase.table("feature_importance").insert(fi_rows[i:i + 50]).execute()
+            logging.info(f"  feature_importance: {len(fi_rows)} rows stored (tag={fi_model_tag}).")
+        except Exception as fi_err:
+            logging.warning(f"  Could not store feature_importance rows: {fi_err}")
+
+
     # ─────────────────────────────────────────────────────────────────────────
     # STEP 10: Champion comparison — only replace if new model is better
     # ─────────────────────────────────────────────────────────────────────────
@@ -556,11 +647,8 @@ def run():
             "cv_auc_mean": float(round(cv_auc_scores.mean(), 4)),
         },
         "feature_importance": feat_imp,
-        "season_metrics": {
-            "2025": {"accuracy": accuracy},
-            "2024": {"accuracy": round(accuracy * 0.98, 4)}
-        },
-        "statistical_significance": {"permutation_importance": feat_imp},
+        "season_metrics": season_by_year,  # real per-year metrics computed below
+        "statistical_significance": {"permutation_importance": feat_imp, "shap_means": shap_means},
         "feature_families": "statistics,ancient,vedic,babylonian,numerology,pancha_bhuta",
         "training_date": datetime.utcnow().isoformat(),
         "train_start_year": 2002,
@@ -579,7 +667,15 @@ def run():
     }).execute()
     logging.info(f"model_registry: new champion inserted: {new_version}")
     logging.info(f"  Accuracy={accuracy:.1%}, AUC={auc_roc:.4f}, CV_AUC={cv_auc_scores.mean():.4f}")
-    
+
+    # Update feature_importance model_version from pending tag to real champion version
+    if fi_rows:
+        try:
+            supabase.table("feature_importance").update({"model_version": new_version}).eq("model_version", fi_model_tag).execute()
+            logging.info(f"  feature_importance: model_version updated from '{fi_model_tag}' to '{new_version}'")
+        except Exception as fi_upd_err:
+            logging.warning(f"  Could not update feature_importance model_version: {fi_upd_err}")
+
     # training_runs record
     supabase.table("training_runs").insert({
         "run_id": run_id,

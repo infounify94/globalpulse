@@ -27,9 +27,11 @@ export default function PredictionsPage() {
                 <th>Match</th>
                 <th>Date & Time (UTC)</th>
                 <th>Venue</th>
+                <th>Match Type</th>
                 <th>Predicted Winner</th>
                 <th>Win Prob</th>
                 <th>Confidence</th>
+                <th>Prediction Model</th>
                 <th>Top Features</th>
               </tr>
             </thead>
@@ -40,6 +42,7 @@ export default function PredictionsPage() {
                 const winProb = m.probability ?? null
                 const venueStr = m.venue || '—'
                 const topFactors = m.top_driving_features || []
+                const confPct = m.confidence != null ? `${(m.confidence * 100).toFixed(1)}%` : '—'
 
                 return (
                   <tr key={i}>
@@ -48,14 +51,18 @@ export default function PredictionsPage() {
                     </td>
                     <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{fmtDateTime(m.date)}</td>
                     <td style={{ color: '#475569', fontWeight: 500 }}>{venueStr}</td>
+                    <td style={{ fontSize: 11, color: '#64748b' }}>{m.match_type || '—'}</td>
                     <td style={{ fontWeight: 600, color: '#3b5bdb' }}>{winner}</td>
                     <td><strong>{winProb != null ? `${(winProb * 100).toFixed(1)}%` : '—'}</strong></td>
                     <td>
                       {m.confidence != null ? (
                         <span className={`badge ${m.confidence > 0.65 ? 'badge-success' : 'badge-warn'}`}>
-                          {m.confidence > 0.65 ? 'High' : 'Moderate'}
+                          {confPct}
                         </span>
                       ) : '—'}
+                    </td>
+                    <td style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace', maxWidth: 120, wordBreak: 'break-all' }}>
+                      {m.model_version ? m.model_version.slice(0, 20) + '…' : <span style={{ color: '#94a3b8' }}>Champion</span>}
                     </td>
                     <td style={{ color: '#64748b', fontSize: 11, maxWidth: 200, whiteSpace: 'normal' }}>
                       {topFactors.length > 0
