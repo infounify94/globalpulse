@@ -246,7 +246,7 @@ def run():
         pred_winner = team_a if prob >= 0.5 else team_b
         confidence = float(round(abs(prob - 0.5) * 2.0, 4))
 
-        ancient_summary = f"Sun {round(astro_features.get('sun_lon', 120.5), 1)}° · Moon {round(astro_features.get('moon_lon', 85.2), 1)}°"
+        ancient_summary = f"Consensus Prob {round(ancient_feats.get('anc_consensus_prob_a', 0.5)*100, 1)}% · Jyotish {round(ancient_feats.get('anc_jyotish_prob_a', 0.5)*100, 1)}%"
         pred_record = {
             "match_id": match_id,
             "date": date_str if isinstance(date_str, str) else date_str.isoformat(),
@@ -261,8 +261,8 @@ def run():
             "actual_winner_id": None,
             "prediction_status": "PENDING",
             "prediction_timestamp": datetime.utcnow().isoformat(),
-            "top_driving_features": json.dumps({"statistical": feats, "astronomy": astro_features}),
-            "ancient_signals": json.dumps({"dominant": ancient_summary, **astro_features})
+            "top_driving_features": json.dumps({"statistical": feats, "ancient": ancient_feats}),
+            "ancient_signals": json.dumps({"dominant": ancient_summary, **ancient_feats})
         }
 
         try:
