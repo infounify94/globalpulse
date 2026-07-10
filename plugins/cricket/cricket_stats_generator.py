@@ -6,6 +6,22 @@ from core.generators.base_generator import BaseFeatureGenerator
 from core.models.base_event import BaseEvent
 from core.memory.schema import DBEvent, DBCricketMatchMetadata
 
+from datetime import datetime, date
+
+def _to_dt(val):
+    if val is None:
+        return datetime.min
+    if isinstance(val, str):
+        try:
+            return datetime.fromisoformat(val[:19])
+        except Exception:
+            return datetime.min
+    if isinstance(val, datetime):
+        return val
+    if isinstance(val, date):
+        return datetime(val.year, val.month, val.day)
+    return datetime.min
+
 class CricketStatsGenerator(BaseFeatureGenerator):
     """
     Generates domain-specific statistical features for a cricket match.
@@ -45,7 +61,7 @@ class CricketStatsGenerator(BaseFeatureGenerator):
                     self._all_history = []
                     for e, m in raw_records:
                         self._all_history.append({
-                            "date": e.date,
+                            "date": _to_dt(e.date),
                             "venue_id": e.venue_id,
                             "outcome": e.outcome,
                             "team_a_id": m.team_a_id,
@@ -56,10 +72,8 @@ class CricketStatsGenerator(BaseFeatureGenerator):
                 res = self.engine.table("prediction_store").select("date, match_id, actual_winner_id, team_a, team_b, match_type").not_.is_("actual_winner_id", "null").order("date", desc=True).limit(5000).execute()
                 self._all_history = []
                 for r in (res.data or []):
-                    from datetime import datetime
-                    d = datetime.fromisoformat(r["date"]).date() if isinstance(r["date"], str) else r["date"]
                     self._all_history.append({
-                        "date": d,
+                        "date": _to_dt(r.get("date")),
                         "venue_id": r.get("match_type", "Unknown"),
                         "outcome": r.get("actual_winner_id"),
                         "team_a_id": r.get("team_a"),
@@ -69,8 +83,9 @@ class CricketStatsGenerator(BaseFeatureGenerator):
                 self._all_history = []
                     
         # Filter strictly before current event date in-memory
+        event_dt = _to_dt(event.date)
         historical_records = [
-            r for r in self._all_history if r["date"] < event.date
+            r for r in self._all_history if r["date"] < event_dt
         ]
 
         features = {}
