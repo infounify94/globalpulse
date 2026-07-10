@@ -85,8 +85,8 @@ function MatchRow({ match }) {
   const prob = match.team_a_probability ?? 0.5
   const teamA = match.team_a || 'Team A'
   const teamB = match.team_b || 'Team B'
-  const winner = prob > 0.5 ? teamA : teamB
-  const winProb = prob > 0.5 ? prob : 1 - prob
+  const winner = match.predicted_winner || (prob > 0.5 ? teamA : teamB)
+  const winProb = match.probability || (prob > 0.5 ? prob : 1 - prob)
   const venueStr = match.venue || match.location || match.match_type || 'Cricket Venue'
 
   return (
@@ -311,17 +311,19 @@ export default function DashboardPage() {
           </div>
           {sl ? <TableSkeleton rows={5} /> : (
             recent.map((p, i) => {
-              // Support both shadow_predictions and prediction_store field names
               const predWinner = p.predicted_winner || p.predicted_winner_id || '—'
               const actualWinner = p.actual_winner || p.actual_winner_id || null
-              const isCorrect = p.is_correct ?? (actualWinner && actualWinner === predWinner)
+              const isCorrect = p.is_correct ?? (actualWinner && actualWinner.toLowerCase() === predWinner.toLowerCase())
+              const matchTitle = p.event_id || `${p.team_a || 'Team A'} vs ${p.team_b || 'Team B'}`
               return (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
-                      {predWinner.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                      {matchTitle}
                     </div>
-                    <div style={{ fontSize: 11, color: '#94a3b8' }}>{fmtDateTime(p.prediction_timestamp)}</div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>
+                      Predicted: <strong style={{ color: '#3b5bdb' }}>{predWinner}</strong> {actualWinner ? `| Actual: ${actualWinner}` : ''} · {fmtDateTime(p.prediction_timestamp)}
+                    </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 12, color: '#64748b' }}>{p.confidence ? `${(p.confidence * 100).toFixed(0)}%` : '—'}</span>

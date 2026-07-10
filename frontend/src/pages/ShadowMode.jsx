@@ -8,10 +8,10 @@ export default function ShadowModePage() {
   const predictions = Array.isArray(data) ? data : []
 
   const total   = predictions.length
-  const correct = predictions.filter(p => p.actual_winner && p.actual_winner === p.predicted_winner).length
-  const wrong   = predictions.filter(p => p.actual_winner && p.actual_winner !== p.predicted_winner).length
+  const correct = predictions.filter(p => p.actual_winner && (p.is_correct ?? p.actual_winner.toLowerCase() === (p.predicted_winner||'').toLowerCase())).length
+  const wrong   = predictions.filter(p => p.actual_winner && !(p.is_correct ?? p.actual_winner.toLowerCase() === (p.predicted_winner||'').toLowerCase())).length
   const pending = predictions.filter(p => !p.actual_winner).length
-  const acc     = total > 0 ? ((correct / (correct + wrong)) * 100).toFixed(1) : '—'
+  const acc     = (correct + wrong) > 0 ? ((correct / (correct + wrong)) * 100).toFixed(1) : '—'
 
   return (
     <DashboardLayout title="Shadow Mode" subtitle="Immutable audit trail of all AI predictions vs actual outcomes">
@@ -49,8 +49,8 @@ export default function ShadowModePage() {
                   <td>{p.actual_winner || <span className="badge badge-warn">Pending</span>}</td>
                   <td>
                     {p.actual_winner ? (
-                      <span className={`badge ${p.actual_winner === p.predicted_winner ? 'badge-success' : 'badge-danger'}`}>
-                        {p.actual_winner === p.predicted_winner ? '✓ Correct' : '✗ Wrong'}
+                      <span className={`badge ${(p.is_correct ?? p.actual_winner.toLowerCase() === (p.predicted_winner||'').toLowerCase()) ? 'badge-success' : 'badge-danger'}`}>
+                        {(p.is_correct ?? p.actual_winner.toLowerCase() === (p.predicted_winner||'').toLowerCase()) ? '✓ Correct' : '✗ Wrong'}
                       </span>
                     ) : <span className="badge badge-warn">Pending</span>}
                   </td>

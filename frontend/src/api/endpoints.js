@@ -59,20 +59,63 @@ export const fetchMetrics = async () => {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Shadow Predictions  (immutable audit trail)
+// Shadow Predictions & Verified Outcomes (immutable audit trail)
 // ─────────────────────────────────────────────────────────────────────────────
 export const fetchShadow = async () => {
+  const nowIso = new Date().toISOString()
+  // 1. First query verified outcomes from prediction_store ensuring no future dates leak
+  const { data: verifiedData, error: verError } = await supabase
+    .from('prediction_store')
+    .select('*')
+    .eq('prediction_status', 'VERIFIED')
+    .or(`date.lte.${nowIso},date.is.null`)
+    .order('date', { ascending: false, nullsFirst: false })
+    .limit(50)
+
+  if (verifiedData && verifiedData.length > 0) {
+    return verifiedData.map(p => {
+      const formatTeam = str => str ? str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : null
+      const predWinner = formatTeam(p.predicted_winner_id || p.predicted_winner) || '—'
+      const actualWinner = formatTeam(p.actual_winner_id || p.actual_winner) || null
+      const teamA = formatTeam(p.team_a) || 'Team A'
+      const teamB = formatTeam(p.team_b) || 'Team B'
+      const isCorrect = actualWinner ? (actualWinner.toLowerCase() === predWinner.toLowerCase()) : null
+      return {
+        ...p,
+        event_id: `${teamA} vs ${teamB}`,
+        predicted_winner: predWinner,
+        actual_winner: actualWinner,
+        is_correct: isCorrect,
+        confidence: p.confidence ?? (p.probability ? Math.abs(p.probability - 0.5) * 2 : 0.75),
+        prediction_timestamp: p.prediction_timestamp || p.date
+      }
+    })
+  }
+
+  // 2. Fall back to shadow_predictions table if no verified records match
   const { data, error } = await supabase
     .from('shadow_predictions')
     .select('*')
+    .lte('prediction_timestamp', nowIso)
     .order('prediction_timestamp', { ascending: false })
     .limit(100)
   if (error) {
     console.warn('shadow_predictions fetch error:', error.message)
     return []
   }
-  return data || []
+  const formatTeam = str => str ? str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : null
+  return (data || []).map(p => {
+    const predWinner = formatTeam(p.predicted_winner || p.predicted_winner_id) || '—'
+    const actualWinner = formatTeam(p.actual_winner || p.actual_winner_id) || null
+    return {
+      ...p,
+      predicted_winner: predWinner,
+      actual_winner: actualWinner,
+      is_correct: actualWinner ? (actualWinner.toLowerCase() === predWinner.toLowerCase()) : null
+    }
+  })
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Upcoming Matches with Predictions
@@ -89,21 +132,19 @@ export const fetchMatches = async () => {
 
   if (error) throw error
 
-  return (data || []).map(m => {
-    // Prefer explicit team columns; fall back to predicted_winner_id heuristic
-    const teamA = m.team_a
-      ? m.team_a.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-      : (m.predicted_winner_id === 'india' ? 'India' : 'Team A')
-    const teamB = m.team_b
-      ? m.team_b.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-      : (m.predicted_winner_id === 'india' ? 'England' : 'Team B')
+  const formatTeam = str => str ? str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : null
 
-    const prob = m.team_a_probability ?? m.probability ?? 0.5
+  return (data || []).map(m => {
+    const teamA = formatTeam(m.team_a) || (m.predicted_winner_id === 'india' ? 'India' : 'Team A')
+    const teamB = formatTeam(m.team_b) || (m.predicted_winner_id === 'india' ? 'England' : 'Team B')
+    const predWinner = formatTeam(m.predicted_winner_id || m.predicted_winner) || (m.team_a_probability > 0.5 ? teamA : teamB)
+    const prob = m.probability ?? m.team_a_probability ?? 0.5
 
     return {
       ...m,
       team_a: teamA,
       team_b: teamB,
+      predicted_winner: predWinner,
       venue: m.venue || m.location || m.match_type || 'Cricket Venue',
       team_a_probability: prob,
     }
