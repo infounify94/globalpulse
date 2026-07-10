@@ -3,9 +3,12 @@ Fix remaining schema issues:
 1. Add 'confidence' column to shadow_predictions (it has 'confidence_bucket' but not 'confidence')
 2. Find the base table for dashboard_summary VIEW and update it directly
 """
+import os
 import psycopg2
 
-DB_URL = 'postgresql://postgres.qzmojqtejmdowkdctlxm:Sathish31500@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres'
+DB_URL = os.environ.get("DATABASE_URL")
+if not DB_URL:
+    raise ValueError("DATABASE_URL required in environment")
 conn = psycopg2.connect(DB_URL)
 
 print("=== FIX SCHEMA ISSUES ===\n")

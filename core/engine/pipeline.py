@@ -14,7 +14,6 @@ try:
 except ImportError:
     logging.warning("scikit-learn, joblib, or pandas missing. Pipeline will not execute.")
 
-from sklearn.calibration import CalibratedClassifierCV
 from core.engine.metrics import ModelMetrics
 from core.memory.schema import DBModelRegistry, DBExperimentRegistry, DBPredictionStore, DBPredictionLineage
 

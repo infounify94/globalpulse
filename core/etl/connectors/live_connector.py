@@ -139,6 +139,35 @@ class ScoreConnector:
             return None
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10))
+    def fetch_recent_results(self) -> List[Dict[str, Any]]:
+        """
+        Fetches completed match outcomes from CricAPI for continuous learning.
+        """
+        if not self.api_key:
+            return [{"match_id": "cric_999", "winner": "India", "score": "320/5", "source": "mock"}]
+        try:
+            resp = requests.get(
+                f"{CRICAPI_BASE}/currentMatches",
+                params={"apikey": self.api_key, "offset": 0},
+                timeout=10
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            results = []
+            for m in data.get("data", []):
+                if m.get("matchEnded", False) and m.get("matchWinner"):
+                    results.append({
+                        "match_id": m.get("id", ""),
+                        "winner": m.get("matchWinner", ""),
+                        "status": m.get("status", ""),
+                        "source": "cricapi"
+                    })
+            return results
+        except Exception as e:
+            logging.error(f"ScoreConnector fetch_recent_results failed: {e}")
+            return []
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10))
     def fetch_live_scores(self) -> List[Dict[str, Any]]:
         """
         Fetches all currently live match scores using eCricScore.

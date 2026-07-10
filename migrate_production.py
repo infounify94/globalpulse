@@ -6,9 +6,9 @@ import os
 from supabase import create_client
 from datetime import datetime, timezone
 
-url = 'https://qzmojqtejmdowkdctlxm.supabase.co'
-key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF6bW9qcXRlam1kb3drZGN0bHhtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MzQyODgwNCwiZXhwIjoyMDk5MDA0ODA0fQ.SBOA0gNLvMLNJGW13fSS8uj8tb7KLvrbbUBDfSnNYUM'
-sb = create_client(url, key)
+url = os.environ.get("SUPABASE_URL")
+key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
+sb = create_client(url, key) if url and key else None
 
 now = datetime.now(timezone.utc).isoformat()
 

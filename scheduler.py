@@ -1,7 +1,7 @@
 import logging
 import time
 from apscheduler.schedulers.background import BackgroundScheduler
-from core.etl.connectors import MockCricketConnector
+from core.etl.connectors.live_connector import ScoreConnector
 from core.memory.schema import get_engine
 from core.engine.continuous_learning import ContinuousLearningEngine
 
@@ -9,11 +9,11 @@ logging.basicConfig(level=logging.INFO)
 
 class AutomatedScheduler:
     """
-    Runs the daily MLOps pipeline on autopilot.
+    Runs the daily MLOps pipeline on autopilot using real ScoreConnector.
     """
     def __init__(self):
         self.scheduler = BackgroundScheduler()
-        self.connector = MockCricketConnector()
+        self.connector = ScoreConnector()
         self.engine = get_engine()
         self.learning_engine = ContinuousLearningEngine(self.engine, pipeline=None)
         

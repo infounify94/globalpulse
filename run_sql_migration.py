@@ -2,10 +2,11 @@
 Direct PostgreSQL Migration via psycopg2
 Uses the SUPABASE_DB_URL from .env for direct database access
 """
+import os
 import psycopg2
 from datetime import datetime, timezone
 
-DB_URL = 'postgresql://postgres.qzmojqtejmdowkdctlxm:Sathish31500@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres'
+DB_URL = os.environ.get("DATABASE_URL")
 
 print("=== DIRECT POSTGRESQL MIGRATION ===\n")
 errors = []
