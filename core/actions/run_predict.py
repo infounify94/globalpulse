@@ -19,6 +19,7 @@ except ImportError:
 from plugins.cricket.cricket_event import CricketEvent
 from plugins.cricket.cricket_stats_generator import CricketStatsGenerator
 from core.generators.astronomy_generator import AstronomyGenerator
+from core.engine.ancient_engine import AncientPredictionEngine
 from core.etl.connectors.live_connector import ScheduleConnector
 
 load_dotenv()
@@ -78,22 +79,55 @@ def run():
         logging.error(f"Could not load champion model from storage: {e}. Aborting predictions to prevent uncalibrated fallback.")
         raise
 
-    # 2. Fetch real upcoming fixtures (from DB events where outcome IS NULL or ScheduleConnector)
+    # 2. Fetch real upcoming fixtures via direct SQL (events + cricket_match_metadata)
+    # NOTE: Using psycopg2 to join, because events table alone lacks team_a/team_b columns
     logging.info("Fetching upcoming fixtures for prediction...")
     upcoming_events = []
     try:
-        ev_res = supabase.table("events").select("*").is_("outcome", "null").order("date", desc=False).limit(30).execute()
-        for e in (ev_res.data or []):
-            upcoming_events.append({
-                "match_id": e["id"],
-                "team_a": e.get("team_a") or "India",
-                "team_b": e.get("team_b") or "Australia",
-                "date": e["date"],
-                "venue": e.get("venue") or "MCG",
-                "match_type": e.get("event_type") or "ODI",
-            })
+        import psycopg2
+        db_url = os.environ.get("SUPABASE_DB_URL")
+        if db_url:
+            conn = psycopg2.connect(db_url)
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT e.id, e.date, e.venue_id, m.team_a_id, m.team_b_id, m.match_type
+                FROM events e
+                JOIN cricket_match_metadata m ON m.event_id = e.id
+                WHERE e.outcome IS NULL
+                  AND e.event_type = 'cricket'
+                  AND m.team_a_id IS NOT NULL
+                  AND m.team_b_id IS NOT NULL
+                ORDER BY e.date ASC
+                LIMIT 50
+            """)
+            for row in cur.fetchall():
+                upcoming_events.append({
+                    "match_id": row[0],
+                    "date": str(row[1]) if row[1] else datetime.utcnow().strftime("%Y-%m-%d"),
+                    "venue": str(row[2]) if row[2] else "MCG",
+                    "team_a": row[3],
+                    "team_b": row[4],
+                    "match_type": row[5] or "ODI",
+                })
+            conn.close()
     except Exception as err:
-        logging.warning(f"Could not check DB events table: {err}")
+        logging.warning(f"Could not fetch upcoming fixtures via SQL: {err}")
+
+    if not upcoming_events:
+        # Fall back to prediction_store PENDING rows (which may have team names)
+        try:
+            ev_res = supabase.table("events").select("*").is_("outcome", "null").order("date", desc=False).limit(30).execute()
+            for e in (ev_res.data or []):
+                upcoming_events.append({
+                    "match_id": e["id"],
+                    "team_a": e.get("team_a") or "India",
+                    "team_b": e.get("team_b") or "Australia",
+                    "date": e["date"],
+                    "venue": e.get("venue") or "MCG",
+                    "match_type": e.get("event_type") or "ODI",
+                })
+        except Exception as err2:
+            logging.warning(f"Fallback REST fetch also failed: {err2}")
 
     if not upcoming_events:
         logging.info("No unpredicted DB events found. Fetching via CricAPI ScheduleConnector...")
@@ -126,6 +160,7 @@ def run():
 
     logging.info(f"Processing {len(upcoming_events)} upcoming fixtures...")
     stats_gen = CricketStatsGenerator(supabase)
+    ancient_engine = AncientPredictionEngine()
     new_predictions_count = 0
 
     for fix in upcoming_events:
@@ -158,37 +193,37 @@ def run():
             team_b=str(team_b)
         )
 
-        # Generate exact statistical features
+        # Generate statistical features using the same fixed CricketStatsGenerator
         feats = stats_gen.generate(event)
-        
-        # Generate exact ancient/astronomy features
-        try:
-            astro_raw = AstronomyGenerator().generate(event)
-            astro_features = {k: float(v) for k, v in astro_raw.items() if isinstance(v, (int, float))}
-        except Exception:
-            astro_features = {"sun_lon": 120.5, "moon_lon": 85.2, "ascendant_lon": 15.0}
 
-        # Merge all available inference features to align with any trained champion architecture
-        full_feats = {
-            **feats,
-            **astro_features,
-            "astro_sun_lon": astro_features.get("sun_lon", 120.5),
-            "astro_moon_lon": astro_features.get("moon_lon", 85.2),
-            "astro_ascendant_lon": astro_features.get("ascendant_lon", 15.0),
-            "astro_mercury_lon": astro_features.get("mercury_lon", 45.0),
-            "vedic_nakshatra_a": float((abs(hash(str(team_a))) % 27) + 1),
-            "vedic_nakshatra_b": float((abs(hash(str(team_b))) % 27) + 1),
-            "vedic_tithi": float((abs(hash(str(date_str))) % 30) + 1),
-            "vedic_yoga": float((abs(hash(str(venue))) % 27) + 1),
-            "env_temp_c": 26.5,
-            "env_humidity_pct": 65.0,
-            "env_wind_kmh": 14.2,
-            "env_dew_point": 18.0,
-            "num_destiny_a": float((abs(hash(str(team_a))) % 9) + 1),
-            "num_destiny_b": float((abs(hash(str(team_b))) % 9) + 1),
-            "num_match_vibration": float((abs(hash(str(match_id))) % 9) + 1),
-            "num_name_harmony": 0.85
-        }
+        # Generate ancient signals (same 6 features the champion was trained on)
+        try:
+            match_date_obj = ev_dt.date() if hasattr(ev_dt, 'date') else ev_dt
+            ancient_result = ancient_engine.predict(
+                team_a=str(team_a),
+                team_b=str(team_b),
+                match_date=match_date_obj,
+                venue=str(venue),
+            )
+            ancient_feats = {
+                "anc_consensus_prob_a": float(ancient_result["consensus"]["team_a_prob"]),
+                "anc_consensus_confidence": float(ancient_result["consensus"]["confidence"]),
+                "anc_jyotish_prob_a": float(ancient_result["systems"][0]["team_a_prob"]),
+                "anc_babylonian_prob_a": float(ancient_result["systems"][1]["team_a_prob"]),
+                "anc_numerology_prob_a": float(ancient_result["systems"][2]["team_a_prob"]),
+                "anc_pancha_bhuta_prob_a": float(ancient_result["systems"][3]["team_a_prob"]),
+            }
+        except Exception as anc_err:
+            logging.debug(f"Ancient engine fallback for {team_a} vs {team_b}: {anc_err}")
+            ancient_feats = {
+                "anc_consensus_prob_a": 0.5, "anc_consensus_confidence": 0.0,
+                "anc_jyotish_prob_a": 0.5, "anc_babylonian_prob_a": 0.5,
+                "anc_numerology_prob_a": 0.5, "anc_pancha_bhuta_prob_a": 0.5,
+            }
+
+        # Merge all features — champion was trained on exactly these 17 keys
+        full_feats = {**feats, **ancient_feats}
+
 
         # Prepare X vector matching trained model features if available
         if trained_features:
