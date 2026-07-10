@@ -117,20 +117,29 @@ def run():
         team_a = fix["team_a"]
         team_b = fix["team_b"]
         venue = fix["venue"]
-        match_type = fix.get("match_type", "ODI")
+        match_type = fix.get("match_type") or "ODI"
+        venue = fix.get("venue") or match_type or "MCG"
         date_str = fix["date"]
 
-        ev_date = datetime.fromisoformat(date_str).date() if isinstance(date_str, str) and "-" in str(date_str) else datetime.utcnow().date()
+        if isinstance(date_str, str) and len(date_str) >= 10:
+            try:
+                ev_dt = datetime.fromisoformat(date_str[:19])
+            except Exception:
+                ev_dt = datetime.utcnow()
+        elif isinstance(date_str, datetime):
+            ev_dt = date_str
+        else:
+            ev_dt = datetime.utcnow()
 
         event = CricketEvent(
-            id=match_id,
-            date=ev_date,
-            location=venue,
-            participants=[team_a, team_b],
-            match_type=match_type,
-            venue_name=venue,
-            team_a=team_a,
-            team_b=team_b
+            id=str(match_id or uuid.uuid4()),
+            date=ev_dt,
+            location=str(venue),
+            participants=[str(team_a), str(team_b)],
+            match_type=str(match_type),
+            venue_name=str(venue),
+            team_a=str(team_a),
+            team_b=str(team_b)
         )
 
         # Generate exact statistical features
@@ -138,7 +147,7 @@ def run():
         
         # Generate exact ancient/astronomy features
         try:
-            astro_raw = get_astro_features({"date": ev_date, "location": venue})
+            astro_raw = get_astro_features({"date": ev_dt, "location": venue})
             astro_features = {k: float(v) for k, v in astro_raw.items() if isinstance(v, (int, float))}
         except Exception:
             astro_features = {"sun_lon": 120.5, "moon_lon": 85.2, "ascendant_lon": 15.0}

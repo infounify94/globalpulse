@@ -74,17 +74,28 @@ def run():
         if not winner or winner not in [team_a, team_b]:
             continue
 
-        # Create CricketEvent instance for feature extraction
-        ev_date = datetime.fromisoformat(rec["date"]).date() if isinstance(rec["date"], str) else rec["date"]
+        if isinstance(rec.get("date"), str) and len(rec["date"]) >= 10:
+            try:
+                ev_dt = datetime.fromisoformat(rec["date"][:19])
+            except Exception:
+                ev_dt = datetime.utcnow()
+        elif isinstance(rec.get("date"), datetime):
+            ev_dt = rec["date"]
+        else:
+            ev_dt = datetime.utcnow()
+
+        match_type_str = rec.get("match_type") or "ODI"
+        venue_str = rec.get("venue") or match_type_str or "MCG"
+
         event = CricketEvent(
-            id=rec["match_id"],
-            date=ev_date,
-            location=rec.get("match_type", "ODI"),
-            participants=[team_a, team_b],
-            match_type=rec.get("match_type", "ODI"),
-            venue_name=rec.get("match_type", "ODI"),
-            team_a=team_a,
-            team_b=team_b
+            id=str(rec.get("match_id") or uuid.uuid4()),
+            date=ev_dt,
+            location=str(venue_str),
+            participants=[str(team_a), str(team_b)],
+            match_type=str(match_type_str),
+            venue_name=str(venue_str),
+            team_a=str(team_a),
+            team_b=str(team_b)
         )
 
         try:
