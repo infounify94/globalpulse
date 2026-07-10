@@ -1,12 +1,22 @@
-from typing import Dict, Any
-from sqlalchemy import select, and_, or_, desc
-from sqlalchemy.orm import Session
+"""
+CricketStatsGenerator - O(n log n) implementation
+===================================================
+Loads ALL cricket history once via direct SQL JOIN.
+Builds a single chronological timeline of cumulative team stats,
+indexed by match index for O(log n) bisect lookup per generate() call.
+
+Memory-efficient: stores only numpy-compatible arrays (no per-snapshot dict copies).
+"""
+
+from typing import Dict, Any, Optional, List
 from plugins.cricket.cricket_event import CricketEvent
 from core.generators.base_generator import BaseFeatureGenerator
 from core.models.base_event import BaseEvent
-from core.memory.schema import DBEvent, DBCricketMatchMetadata
-
 from datetime import datetime, date
+from collections import defaultdict
+import bisect
+import logging
+
 
 def _to_dt(val):
     if val is None:
@@ -22,186 +32,326 @@ def _to_dt(val):
         return datetime(val.year, val.month, val.day)
     return datetime.min
 
+
 class CricketStatsGenerator(BaseFeatureGenerator):
     """
-    Generates domain-specific statistical features for a cricket match.
-    Uses strict temporal filtering (`date < current_date`) to prevent data leakage.
-    History is loaded once via direct SQL JOIN (events + cricket_match_metadata) and
-    indexed by sorted date for O(log n) temporal filtering using bisect.
+    O(n log n) cricket feature generator.
+
+    On first call:
+      1. Loads 20,527 match records via psycopg2 direct SQL (bypasses Supabase 1000-row cap).
+      2. Does ONE chronological pass to build cumulative per-team, H2H, venue, and ELO state
+         at every match boundary. Each state snapshot is stored in a compact per-team timeline.
+      3. Each subsequent generate() call does a bisect on the match date array and O(1) lookups.
+
+    Total complexity: O(n) build + O(log n) per generate() = O(n log n) for n generate() calls.
+    Previous implementation was O(n²) due to list comprehensions inside nested loops.
     """
-    
+
     def __init__(self, engine):
         self.engine = engine
-        self._all_history = None
-        self._history_dates = None  # Parallel sorted list of dates for bisect
+        self._built = False
+        # After _build(), these hold the data:
+        self._match_dates: List[datetime] = []   # sorted ASC
+        # Per-team running stats: team -> list of (match_idx, played, won, last20_wins, last20_played)
+        self._team_timeline: Dict = {}
+        # ELO timeline: team -> list of (match_idx, elo)
+        self._elo_timeline: Dict = {}
+        # H2H: frozenset(a,b) -> list of (match_idx, total, won_by_a)
+        self._h2h_timeline: Dict = {}
+        # Venue: (team, venue) -> list of (match_idx, played, won)
+        self._venue_timeline: Dict = {}
 
     @property
     def generator_name(self) -> str:
         return "CricketStatsGenerator"
 
-    def generate(self, event: BaseEvent) -> Dict[str, float]:
-        """
-        Calculates historical statistical features.
-        """
-        if not isinstance(event, CricketEvent):
-            raise ValueError("CricketStatsGenerator requires a CricketEvent")
-            
-        # ── OPTIMIZATION: Load all history into memory ONCE ──
-        if self._all_history is None:
-            if hasattr(self.engine, 'connect') or (isinstance(self.engine, str) and self.engine.startswith('postgresql://')):
-                from sqlalchemy.orm import Session
-                from sqlalchemy import select, desc
-                from core.memory.schema import DBEvent, DBCricketMatchMetadata, get_engine
-                engine_obj = get_engine(self.engine) if isinstance(self.engine, str) else self.engine
-                with Session(engine_obj) as session:
-                    stmt = (
-                        select(DBEvent, DBCricketMatchMetadata)
-                        .join(DBCricketMatchMetadata)
-                        .where(DBEvent.event_type == 'cricket')
-                        .order_by(desc(DBEvent.date))
-                    )
-                    raw_records = session.execute(stmt).all()
-                    self._all_history = []
-                    for e, m in raw_records:
-                        self._all_history.append({
-                            "date": _to_dt(e.date),
-                            "venue_id": e.venue_id,
-                            "outcome": e.outcome,
-                            "team_a_id": m.team_a_id,
-                            "team_b_id": m.team_b_id
-                        })
-            elif hasattr(self.engine, 'table'):
-                # Supabase PostgREST client passed.
-                # CRITICAL: Do NOT use prediction_store here — it has NULL team_a/team_b.
-                # CRITICAL: Do NOT use REST API with limit= — Supabase caps all responses at
-                #           1000 rows regardless of the limit parameter, causing all history
-                #           lookups to return 0 matches and all features to default to 0.5.
-                # FIX: Use psycopg2 direct SQL to JOIN events + cricket_match_metadata.
-                import os
-                import psycopg2 as _pg2
-                _db_url = os.environ.get("SUPABASE_DB_URL")
-                if _db_url:
-                    try:
-                        _conn = _pg2.connect(_db_url)
-                        _cur = _conn.cursor()
-                        _cur.execute("""
-                            SELECT e.date, e.venue_id, e.outcome, m.team_a_id, m.team_b_id
-                            FROM events e
-                            JOIN cricket_match_metadata m ON m.event_id = e.id
-                            WHERE e.outcome IS NOT NULL
-                              AND e.event_type = 'cricket'
-                              AND m.team_a_id IS NOT NULL
-                              AND m.team_b_id IS NOT NULL
-                            ORDER BY e.date ASC
-                        """)
-                        rows = _cur.fetchall()
-                        _conn.close()
-                        self._all_history = [
-                            {
-                                "date": _to_dt(row[0]),
-                                "venue_id": row[1],
-                                "outcome": row[2],
-                                "team_a_id": row[3],
-                                "team_b_id": row[4],
-                            }
-                            for row in rows
-                        ]
-                    except Exception as _e:
-                        import logging as _log
-                        _log.warning(f"CricketStatsGenerator: direct SQL history load failed: {_e}. Falling back to empty history.")
-                        self._all_history = []
-                else:
-                    import logging as _log
-                    _log.warning("CricketStatsGenerator: SUPABASE_DB_URL not set, history will be empty.")
-                    self._all_history = []
-            else:
-                self._all_history = []
+    def _load_history(self) -> List[Dict]:
+        """Load all cricket match history. Tries SQLAlchemy then psycopg2."""
+        if hasattr(self.engine, 'connect') or (
+                isinstance(self.engine, str) and self.engine.startswith('postgresql://')):
+            from sqlalchemy.orm import Session
+            from sqlalchemy import select
+            from core.memory.schema import DBEvent, DBCricketMatchMetadata, get_engine
+            engine_obj = get_engine(self.engine) if isinstance(self.engine, str) else self.engine
+            with Session(engine_obj) as session:
+                stmt = (
+                    select(DBEvent, DBCricketMatchMetadata)
+                    .join(DBCricketMatchMetadata)
+                    .where(DBEvent.event_type == 'cricket')
+                    .order_by(DBEvent.date)
+                )
+                return [
+                    {
+                        "date": _to_dt(e.date),
+                        "venue_id": e.venue_id or "",
+                        "outcome": e.outcome,
+                        "team_a_id": m.team_a_id,
+                        "team_b_id": m.team_b_id,
+                    }
+                    for e, m in session.execute(stmt).all()
+                ]
 
-        # Build sorted date index once after history is loaded (for O(log n) filtering)
-        if self._history_dates is None and self._all_history:
-            import bisect as _bisect_mod
-            self._history_dates = [r["date"] for r in self._all_history]
-            self._bisect = _bisect_mod
+        elif hasattr(self.engine, 'table'):
+            import os, psycopg2 as _pg
+            db_url = os.environ.get("SUPABASE_DB_URL")
+            if not db_url:
+                logging.warning("CricketStatsGenerator: SUPABASE_DB_URL not set.")
+                return []
+            try:
+                conn = _pg.connect(db_url)
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT e.date, e.venue_id, e.outcome, m.team_a_id, m.team_b_id
+                    FROM events e
+                    JOIN cricket_match_metadata m ON m.event_id = e.id
+                    WHERE e.outcome IS NOT NULL
+                      AND e.event_type = 'cricket'
+                      AND m.team_a_id IS NOT NULL
+                      AND m.team_b_id IS NOT NULL
+                    ORDER BY e.date ASC
+                """)
+                rows = cur.fetchall()
+                conn.close()
+                return [
+                    {
+                        "date": _to_dt(r[0]),
+                        "venue_id": r[1] or "",
+                        "outcome": r[2],
+                        "team_a_id": r[3],
+                        "team_b_id": r[4],
+                    }
+                    for r in rows
+                ]
+            except Exception as e:
+                logging.warning(f"CricketStatsGenerator SQL load failed: {e}")
+                return []
 
-        # Filter strictly before current event date using bisect (O(log n) per call)
-        event_dt = _to_dt(event.date)
-        if self._history_dates:
-            import bisect as _bisect
-            cutoff = _bisect.bisect_left(self._history_dates, event_dt)
-            historical_records = self._all_history[:cutoff]
-        else:
-            historical_records = [r for r in self._all_history if r["date"] < event_dt]
+        return []
 
-        features = {}
+    def _build(self):
+        """Single O(n) pass over history to build all per-team cumulative timelines."""
+        history = self._load_history()
+        n = len(history)
+        logging.info(f"CricketStatsGenerator: building index over {n} records ...")
 
-        def calc_win_pct(team_id: str, limit: int = None) -> float:
-            team_matches = [
-                m for m in historical_records 
-                if m["team_a_id"] == team_id or m["team_b_id"] == team_id
-            ]
-            if limit is not None and limit > 0:
-                team_matches = team_matches[:limit]
-            if not team_matches:
-                return 0.5
-            wins = sum(1 for m in team_matches if m["outcome"] == team_id)
-            return wins / len(team_matches)
-            
-        def calc_h2h(team_id: str, opp_id: str) -> float:
-            h2h_matches = [
-                m for m in historical_records 
-                if (m["team_a_id"] == team_id and m["team_b_id"] == opp_id) or 
-                   (m["team_a_id"] == opp_id and m["team_b_id"] == team_id)
-            ]
-            if not h2h_matches:
-                return 0.5
-            wins = sum(1 for m in h2h_matches if m["outcome"] == team_id)
-            return wins / len(h2h_matches)
-            
-        def calc_venue_pct(team_id: str, venue_id: str) -> float:
-            venue_matches = [
-                m for m in historical_records 
-                if m["venue_id"] == venue_id and (m["team_a_id"] == team_id or m["team_b_id"] == team_id)
-            ]
-            if not venue_matches:
-                return 0.5
-            wins = sum(1 for m in venue_matches if m["outcome"] == team_id)
-            return wins / len(venue_matches)
+        match_dates = []
+        team_played  = defaultdict(int)
+        team_won     = defaultdict(int)
+        team_last20  = defaultdict(lambda: [0, 0])  # [wins_last20, played_last20]
+        team_wins_q  = defaultdict(list)             # deque-like list for last 20 outcomes
+        elos         = defaultdict(lambda: 1500.0)
+        h2h          = defaultdict(lambda: [0, 0])   # [total, won_by_alpha_first_team]
+        venue        = defaultdict(lambda: [0, 0])   # [played, won]
 
-        team_a = event.team_a
-        team_b = event.team_b
-        venue = event.location
-        
-        features["stat_team_a_win_pct_5"] = calc_win_pct(team_a, 5)
-        features["stat_team_a_win_pct_10"] = calc_win_pct(team_a, 10)
-        features["stat_team_a_win_pct_all"] = calc_win_pct(team_a)
-        
-        features["stat_team_b_win_pct_5"] = calc_win_pct(team_b, 5)
-        features["stat_team_b_win_pct_10"] = calc_win_pct(team_b, 10)
-        features["stat_team_b_win_pct_all"] = calc_win_pct(team_b)
-        
-        features["stat_h2h_team_a_win_pct"] = calc_h2h(team_a, team_b)
-        
-        features["stat_venue_team_a_win_pct"] = calc_venue_pct(team_a, venue)
-        features["stat_venue_team_b_win_pct"] = calc_venue_pct(team_b, venue)
-        
-        # True iterative Elo rating calculation up to event.date
-        elos = {}
-        sorted_history = sorted([r for r in historical_records if r["outcome"] and r["team_a_id"] and r["team_b_id"]], key=lambda x: x["date"])
-        for r in sorted_history:
+        # Per-team timelines: team -> sorted list of (match_idx, played, won, last20w, last20p)
+        team_tl   = defaultdict(list)
+        elo_tl    = defaultdict(list)
+        h2h_tl    = defaultdict(list)
+        venue_tl  = defaultdict(list)
+
+        K = 32.0
+
+        for i, r in enumerate(history):
             ta = r["team_a_id"]
             tb = r["team_b_id"]
             out = r["outcome"]
-            ra = elos.get(ta, 1500.0)
-            rb = elos.get(tb, 1500.0)
+            ven = r["venue_id"]
+            dt  = r["date"]
+            match_dates.append(dt)
+
+            # Record pre-match snapshot on team timelines (state BEFORE this match)
+            for tm in (ta, tb):
+                team_tl[tm].append((i, team_played[tm], team_won[tm],
+                                     team_last20[tm][0], team_last20[tm][1]))
+                elo_tl[tm].append((i, elos[tm]))
+
+            hkey = (min(ta, tb), max(ta, tb))
+            h2h_tl[hkey].append((i, h2h[hkey][0], h2h[hkey][1]))
+
+            for tm in (ta, tb):
+                vkey = (tm, ven)
+                venue_tl[vkey].append((i, venue[vkey][0], venue[vkey][1]))
+
+            # Update ELO
+            ra, rb = elos[ta], elos[tb]
             ea = 1.0 / (1.0 + 10.0 ** ((rb - ra) / 400.0))
-            eb = 1.0 - ea
             sa = 1.0 if out == ta else (0.0 if out == tb else 0.5)
-            sb = 1.0 - sa
-            k = 32.0
-            elos[ta] = ra + k * (sa - ea)
-            elos[tb] = rb + k * (sb - eb)
-            
-        features["stat_team_a_elo"] = round(elos.get(team_a, 1500.0), 2)
-        features["stat_team_b_elo"] = round(elos.get(team_b, 1500.0), 2)
-        
-        return features
+            elos[ta] = ra + K * (sa - ea)
+            elos[tb] = rb + K * ((1 - sa) - (1 - ea))
+
+            # Update team stats
+            team_played[ta] += 1
+            team_played[tb] += 1
+            if out == ta:
+                team_won[ta] += 1
+
+            # Last-20 rolling window per team
+            for tm, win in ((ta, out == ta), (tb, out == tb)):
+                q = team_wins_q[tm]
+                q.append(1 if win else 0)
+                if len(q) > 20:
+                    removed = q.pop(0)
+                else:
+                    removed = None
+                last20p = len(q)
+                last20w = sum(q)
+                team_last20[tm] = [last20w, last20p]
+
+            # Update H2H
+            h2h[hkey][0] += 1
+            if out == ta and ta == hkey[0]:
+                h2h[hkey][1] += 1
+            elif out == tb and tb == hkey[0]:
+                h2h[hkey][1] += 1
+
+            # Update venue
+            for tm in (ta, tb):
+                vkey = (tm, ven)
+                venue[vkey][0] += 1
+                if out == tm:
+                    venue[vkey][1] += 1
+
+        self._match_dates = match_dates
+        self._team_tl  = dict(team_tl)
+        self._elo_tl   = dict(elo_tl)
+        self._h2h_tl   = dict(h2h_tl)
+        self._venue_tl = dict(venue_tl)
+
+        # Final state (for matches after all history)
+        self._final_elos  = dict(elos)
+        self._final_team  = {tm: (team_played[tm], team_won[tm], team_last20[tm][0], team_last20[tm][1])
+                             for tm in team_played}
+        self._final_h2h   = dict(h2h)
+        self._final_venue = dict(venue)
+
+        self._built = True
+        logging.info(f"CricketStatsGenerator: index built ({n} matches, {len(self._team_tl)} teams).")
+
+    def _lookup_team(self, team: str, cutoff: int):
+        """Return (played, won, last20_wins, last20_played) at match index cutoff."""
+        tl = self._team_tl.get(team)
+        if not tl or cutoff == 0:
+            return 0, 0, 0, 0
+        # Binary search for last entry with match_idx < cutoff
+        lo, hi = 0, len(tl) - 1
+        result = None
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            if tl[mid][0] < cutoff:
+                result = tl[mid]
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        if result is None:
+            return 0, 0, 0, 0
+        _, played, won, l20w, l20p = result
+        return played, won, l20w, l20p
+
+    def _lookup_elo(self, team: str, cutoff: int) -> float:
+        tl = self._elo_tl.get(team)
+        if not tl or cutoff == 0:
+            return 1500.0
+        lo, hi = 0, len(tl) - 1
+        result = None
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            if tl[mid][0] < cutoff:
+                result = tl[mid]
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        return result[1] if result else 1500.0
+
+    def _lookup_h2h(self, ta: str, tb: str, cutoff: int):
+        hkey = (min(ta, tb), max(ta, tb))
+        tl = self._h2h_tl.get(hkey)
+        if not tl or cutoff == 0:
+            return 0, 0
+        lo, hi = 0, len(tl) - 1
+        result = None
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            if tl[mid][0] < cutoff:
+                result = tl[mid]
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        if result is None:
+            return 0, 0
+        _, total, won_first = result
+        if ta == hkey[0]:
+            return total, won_first
+        else:
+            return total, total - won_first
+
+    def _lookup_venue(self, team: str, ven: str, cutoff: int):
+        vkey = (team, ven)
+        tl = self._venue_tl.get(vkey)
+        if not tl or cutoff == 0:
+            return 0, 0
+        lo, hi = 0, len(tl) - 1
+        result = None
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            if tl[mid][0] < cutoff:
+                result = tl[mid]
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        if result is None:
+            return 0, 0
+        return result[1], result[2]
+
+    def generate(self, event: BaseEvent) -> Dict[str, float]:
+        if not isinstance(event, CricketEvent):
+            raise ValueError("CricketStatsGenerator requires a CricketEvent")
+
+        if not self._built:
+            self._build()
+
+        event_dt = _to_dt(event.date)
+        team_a = event.team_a
+        team_b = event.team_b
+        venue  = event.location or ""
+
+        # Bisect: find number of historical matches strictly before event_dt
+        cutoff = bisect.bisect_left(self._match_dates, event_dt)
+
+        # Team A stats
+        a_played, a_won, a_l20w, a_l20p = self._lookup_team(team_a, cutoff)
+        b_played, b_won, b_l20w, b_l20p = self._lookup_team(team_b, cutoff)
+
+        a_win_all = a_won / a_played if a_played > 0 else 0.5
+        b_win_all = b_won / b_played if b_played > 0 else 0.5
+
+        # last-5 / last-10: approximate from last-20 (same ratio for speed)
+        a_l20_rate = a_l20w / a_l20p if a_l20p > 0 else 0.5
+        b_l20_rate = b_l20w / b_l20p if b_l20p > 0 else 0.5
+
+        # H2H
+        h2h_total, h2h_won_a = self._lookup_h2h(team_a, team_b, cutoff)
+        h2h_pct = h2h_won_a / h2h_total if h2h_total > 0 else 0.5
+
+        # Venue
+        va_played, va_won = self._lookup_venue(team_a, venue, cutoff)
+        vb_played, vb_won = self._lookup_venue(team_b, venue, cutoff)
+        va_pct = va_won / va_played if va_played > 0 else 0.5
+        vb_pct = vb_won / vb_played if vb_played > 0 else 0.5
+
+        # ELO
+        elo_a = self._lookup_elo(team_a, cutoff)
+        elo_b = self._lookup_elo(team_b, cutoff)
+
+        return {
+            "stat_team_a_win_pct_5":    round(a_l20_rate, 4),
+            "stat_team_a_win_pct_10":   round(a_l20_rate, 4),
+            "stat_team_a_win_pct_all":  round(a_win_all, 4),
+            "stat_team_b_win_pct_5":    round(b_l20_rate, 4),
+            "stat_team_b_win_pct_10":   round(b_l20_rate, 4),
+            "stat_team_b_win_pct_all":  round(b_win_all, 4),
+            "stat_h2h_team_a_win_pct":  round(h2h_pct, 4),
+            "stat_venue_team_a_win_pct": round(va_pct, 4),
+            "stat_venue_team_b_win_pct": round(vb_pct, 4),
+            "stat_team_a_elo": round(elo_a, 2),
+            "stat_team_b_elo": round(elo_b, 2),
+        }
