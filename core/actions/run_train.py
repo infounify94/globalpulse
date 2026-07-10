@@ -78,13 +78,15 @@ def run():
     # -----------------------------------------------------------------------
     try:
         supabase.table("experiment_registry").upsert({
-            "experiment_id": "auto_weekly_retrain",
-            "name": "Automated Weekly Retraining",
-            "hypothesis": "Weekly cron retraining of champion XGBoost model",
-            "status": "COMPLETED"
+            "id": "auto_weekly_retrain",
+            "start_time": datetime.utcnow().isoformat(),
+            "end_time": datetime.utcnow().isoformat(),
+            "dataset_version": "v1.0.2",
+            "feature_version": "v1.0.1",
+            "feature_families_tested": "statistics,vedic,astronomy"
         }).execute()
     except Exception as e:
-        logging.warning(f"Could not upsert experiment_registry (may already exist or need DB connection): {e}")
+        logging.warning(f"Could not upsert experiment_registry: {e}")
 
     supabase.table("model_registry").update({"is_champion": False}).eq("is_champion", True).execute()
 
