@@ -26,11 +26,14 @@ class CricketStatsGenerator(BaseFeatureGenerator):
     """
     Generates domain-specific statistical features for a cricket match.
     Uses strict temporal filtering (`date < current_date`) to prevent data leakage.
+    History is loaded once via direct SQL JOIN (events + cricket_match_metadata) and
+    indexed by sorted date for O(log n) temporal filtering using bisect.
     """
     
     def __init__(self, engine):
         self.engine = engine
         self._all_history = None
+        self._history_dates = None  # Parallel sorted list of dates for bisect
 
     @property
     def generator_name(self) -> str:
@@ -68,25 +71,66 @@ class CricketStatsGenerator(BaseFeatureGenerator):
                             "team_b_id": m.team_b_id
                         })
             elif hasattr(self.engine, 'table'):
-                # Supabase PostgREST client passed
-                res = self.engine.table("prediction_store").select("date, match_id, actual_winner_id, team_a, team_b, match_type").not_.is_("actual_winner_id", "null").order("date", desc=True).limit(5000).execute()
-                self._all_history = []
-                for r in (res.data or []):
-                    self._all_history.append({
-                        "date": _to_dt(r.get("date")),
-                        "venue_id": r.get("match_type", "Unknown"),
-                        "outcome": r.get("actual_winner_id"),
-                        "team_a_id": r.get("team_a"),
-                        "team_b_id": r.get("team_b")
-                    })
+                # Supabase PostgREST client passed.
+                # CRITICAL: Do NOT use prediction_store here — it has NULL team_a/team_b.
+                # CRITICAL: Do NOT use REST API with limit= — Supabase caps all responses at
+                #           1000 rows regardless of the limit parameter, causing all history
+                #           lookups to return 0 matches and all features to default to 0.5.
+                # FIX: Use psycopg2 direct SQL to JOIN events + cricket_match_metadata.
+                import os
+                import psycopg2 as _pg2
+                _db_url = os.environ.get("SUPABASE_DB_URL")
+                if _db_url:
+                    try:
+                        _conn = _pg2.connect(_db_url)
+                        _cur = _conn.cursor()
+                        _cur.execute("""
+                            SELECT e.date, e.venue_id, e.outcome, m.team_a_id, m.team_b_id
+                            FROM events e
+                            JOIN cricket_match_metadata m ON m.event_id = e.id
+                            WHERE e.outcome IS NOT NULL
+                              AND e.event_type = 'cricket'
+                              AND m.team_a_id IS NOT NULL
+                              AND m.team_b_id IS NOT NULL
+                            ORDER BY e.date ASC
+                        """)
+                        rows = _cur.fetchall()
+                        _conn.close()
+                        self._all_history = [
+                            {
+                                "date": _to_dt(row[0]),
+                                "venue_id": row[1],
+                                "outcome": row[2],
+                                "team_a_id": row[3],
+                                "team_b_id": row[4],
+                            }
+                            for row in rows
+                        ]
+                    except Exception as _e:
+                        import logging as _log
+                        _log.warning(f"CricketStatsGenerator: direct SQL history load failed: {_e}. Falling back to empty history.")
+                        self._all_history = []
+                else:
+                    import logging as _log
+                    _log.warning("CricketStatsGenerator: SUPABASE_DB_URL not set, history will be empty.")
+                    self._all_history = []
             else:
                 self._all_history = []
-                    
-        # Filter strictly before current event date in-memory
+
+        # Build sorted date index once after history is loaded (for O(log n) filtering)
+        if self._history_dates is None and self._all_history:
+            import bisect as _bisect_mod
+            self._history_dates = [r["date"] for r in self._all_history]
+            self._bisect = _bisect_mod
+
+        # Filter strictly before current event date using bisect (O(log n) per call)
         event_dt = _to_dt(event.date)
-        historical_records = [
-            r for r in self._all_history if r["date"] < event_dt
-        ]
+        if self._history_dates:
+            import bisect as _bisect
+            cutoff = _bisect.bisect_left(self._history_dates, event_dt)
+            historical_records = self._all_history[:cutoff]
+        else:
+            historical_records = [r for r in self._all_history if r["date"] < event_dt]
 
         features = {}
 
