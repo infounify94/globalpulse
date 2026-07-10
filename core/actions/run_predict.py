@@ -18,7 +18,7 @@ except ImportError:
 
 from plugins.cricket.cricket_event import CricketEvent
 from plugins.cricket.cricket_stats_generator import CricketStatsGenerator
-from core.generators.astronomy_generator import generate_all_features as get_astro_features
+from core.generators.astronomy_generator import AstronomyGenerator
 from core.etl.connectors.live_connector import ScheduleConnector
 
 load_dotenv()
@@ -147,7 +147,7 @@ def run():
         
         # Generate exact ancient/astronomy features
         try:
-            astro_raw = get_astro_features({"date": ev_dt, "location": venue})
+            astro_raw = AstronomyGenerator().generate(event)
             astro_features = {k: float(v) for k, v in astro_raw.items() if isinstance(v, (int, float))}
         except Exception:
             astro_features = {"sun_lon": 120.5, "moon_lon": 85.2, "ascendant_lon": 15.0}
