@@ -18,7 +18,7 @@ except ImportError:
 
 from plugins.cricket.cricket_event import CricketEvent
 from plugins.cricket.cricket_stats_generator import CricketStatsGenerator
-from core.engine.astronomy_generator import generate_all_features as get_astro_features
+from core.generators.astronomy_generator import generate_all_features as get_astro_features
 from core.etl.connectors.live_connector import ScheduleConnector
 
 load_dotenv()
