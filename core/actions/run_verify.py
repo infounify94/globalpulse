@@ -45,6 +45,17 @@ def run():
         predicted = pred["predicted_winner_id"]
         team_a = pred.get("team_a")
         team_b = pred.get("team_b")
+        match_date_str = str(pred.get("date", ""))
+
+        # STRICT SAFETY CHECK: Never verify a match scheduled in the future
+        try:
+            if match_date_str and len(match_date_str) >= 10:
+                match_dt = datetime.fromisoformat(match_date_str[:19].replace("Z", ""))
+                if match_dt > datetime.utcnow():
+                    logging.debug(f"Skipping match {match_id} scheduled in the future ({match_dt})")
+                    continue
+        except Exception:
+            pass
 
         actual_winner = None
 

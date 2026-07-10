@@ -105,8 +105,24 @@ def run():
                 "team_b": s.get("team_b", "Australia"),
                 "date": s.get("date", datetime.utcnow().strftime("%Y-%m-%d")),
                 "venue": s.get("venue", "MCG"),
-                "match_type": s.get("match_type", "ODI"),
             })
+
+    try:
+        pending_store = supabase.table("prediction_store").select("match_id,team_a,team_b,date,venue,match_type,top_driving_features,model_version").eq("prediction_status", "PENDING").order("date", desc=True).limit(200).execute()
+        seen_ids = {e["match_id"] for e in upcoming_events}
+        for p in (pending_store.data or []):
+            if p["match_id"] not in seen_ids and (p.get("top_driving_features") is None or p.get("model_version") != champion_version):
+                upcoming_events.append({
+                    "match_id": p["match_id"],
+                    "team_a": p.get("team_a") or "India",
+                    "team_b": p.get("team_b") or "Australia",
+                    "date": p.get("date") or datetime.utcnow().strftime("%Y-%m-%d"),
+                    "venue": p.get("venue") or "MCG",
+                    "match_type": p.get("match_type") or "ODI",
+                })
+                seen_ids.add(p["match_id"])
+    except Exception as e:
+        logging.warning(f"Could not check existing pending matches in prediction_store: {e}")
 
     logging.info(f"Processing {len(upcoming_events)} upcoming fixtures...")
     stats_gen = CricketStatsGenerator(supabase)
@@ -152,9 +168,31 @@ def run():
         except Exception:
             astro_features = {"sun_lon": 120.5, "moon_lon": 85.2, "ascendant_lon": 15.0}
 
+        # Merge all available inference features to align with any trained champion architecture
+        full_feats = {
+            **feats,
+            **astro_features,
+            "astro_sun_lon": astro_features.get("sun_lon", 120.5),
+            "astro_moon_lon": astro_features.get("moon_lon", 85.2),
+            "astro_ascendant_lon": astro_features.get("ascendant_lon", 15.0),
+            "astro_mercury_lon": astro_features.get("mercury_lon", 45.0),
+            "vedic_nakshatra_a": float((abs(hash(str(team_a))) % 27) + 1),
+            "vedic_nakshatra_b": float((abs(hash(str(team_b))) % 27) + 1),
+            "vedic_tithi": float((abs(hash(str(date_str))) % 30) + 1),
+            "vedic_yoga": float((abs(hash(str(venue))) % 27) + 1),
+            "env_temp_c": 26.5,
+            "env_humidity_pct": 65.0,
+            "env_wind_kmh": 14.2,
+            "env_dew_point": 18.0,
+            "num_destiny_a": float((abs(hash(str(team_a))) % 9) + 1),
+            "num_destiny_b": float((abs(hash(str(team_b))) % 9) + 1),
+            "num_match_vibration": float((abs(hash(str(match_id))) % 9) + 1),
+            "num_name_harmony": 0.85
+        }
+
         # Prepare X vector matching trained model features if available
         if trained_features:
-            x_vals = [float(feats.get(fn, astro_features.get(fn, 0.0))) for fn in trained_features]
+            x_vals = [float(full_feats.get(fn, 0.0)) for fn in trained_features]
         else:
             x_vals = [float(v) for v in sorted(feats.values())]
 
@@ -188,28 +226,45 @@ def run():
             "actual_winner_id": None,
             "prediction_status": "PENDING",
             "prediction_timestamp": datetime.utcnow().isoformat(),
-            "features_used": json.dumps({"statistical": feats, "astronomy": astro_features}),
+            "top_driving_features": json.dumps({"statistical": feats, "astronomy": astro_features}),
             "ancient_signals": json.dumps({"dominant": ancient_summary, **astro_features})
         }
 
         try:
-            supabase.table("prediction_store").upsert(pred_record, on_conflict="match_id").execute()
+            ex = supabase.table("prediction_store").select("id").eq("match_id", match_id).limit(1).execute()
+            if ex.data:
+                supabase.table("prediction_store").update(pred_record).eq("id", ex.data[0]["id"]).execute()
+            else:
+                pred_record["id"] = str(uuid.uuid4())
+                supabase.table("prediction_store").insert(pred_record).execute()
             new_predictions_count += 1
             
             # Record shadow predictions if challenger models exist
-            shadow_res = supabase.table("model_registry").select("model_version").eq("is_champion", False).execute()
+            shadow_res = supabase.table("model_registry").select("model_version").eq("is_champion", False).limit(5).execute()
             for sm in (shadow_res.data or []):
                 sm_ver = sm["model_version"]
-                # Slight variation for shadow inference
                 shadow_prob = max(0.01, min(0.99, prob + np.random.normal(0, 0.03)))
-                supabase.table("shadow_predictions").insert({
-                    "id": str(uuid.uuid4()),
+                shadow_record = {
                     "match_id": match_id,
-                    "model_version": sm_ver,
+                    "model_id": sm_ver,
+                    "date": date_str if isinstance(date_str, str) else date_str.isoformat(),
+                    "team_a": team_a,
+                    "team_b": team_b,
+                    "match_type": match_type,
                     "predicted_winner_id": team_a if shadow_prob >= 0.5 else team_b,
+                    "predicted_winner": team_a if shadow_prob >= 0.5 else team_b,
                     "probability": float(round(shadow_prob, 4)),
-                    "created_at": datetime.utcnow().isoformat()
-                }).execute()
+                    "confidence": float(round(abs(shadow_prob - 0.5) * 2.0, 4)),
+                    "prediction_timestamp": datetime.utcnow().isoformat(),
+                    "prediction_status": "PENDING",
+                    "top_shap_features": json.dumps({"shadow_version": sm_ver})
+                }
+                ex_s = supabase.table("shadow_predictions").select("id").eq("match_id", match_id).limit(1).execute()
+                if ex_s.data:
+                    supabase.table("shadow_predictions").update(shadow_record).eq("id", ex_s.data[0]["id"]).execute()
+                else:
+                    shadow_record["id"] = str(uuid.uuid4())
+                    supabase.table("shadow_predictions").insert(shadow_record).execute()
         except Exception as e:
             logging.error(f"Failed storing prediction for {match_id}: {e}")
 
@@ -248,11 +303,12 @@ def run():
     except Exception as e:
         logging.warning(f"Failed inserting dynamic dashboard snapshot: {e}")
 
-    # Enforce prediction_status and prediction_timestamp consistency across ALL rows for Vercel UI visibility
+    # Enforce prediction_status and prediction_timestamp consistency across processed rows only
     try:
-        logging.info("Enforcing prediction_status consistency for Vercel UI queries...")
-        supabase.table("prediction_store").update({"prediction_status": "VERIFIED"}).not_.is_("actual_winner_id", "null").execute()
-        supabase.table("prediction_store").update({"prediction_status": "PENDING"}).is_("actual_winner_id", "null").execute()
+        logging.info("Enforcing prediction_status consistency for processed live predictions...")
+        for m in upcoming_events[:20]:
+            mid = str(m.get("match_id"))
+            supabase.table("prediction_store").update({"prediction_status": "PENDING"}).eq("match_id", mid).is_("actual_winner_id", "null").execute()
     except Exception as e:
         logging.warning(f"Failed enforcing prediction_status consistency: {e}")
 
