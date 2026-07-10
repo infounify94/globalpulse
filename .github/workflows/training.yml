@@ -1,8 +1,0 @@
-# This file was a duplicate of train_workflow.yml and has been DISABLED.
-# Use train_workflow.yml for all model training.
-# This file is kept only for historical reference.
-#
-# DO NOT RE-ENABLE without removing train_workflow.yml first.
-#
-# name: Weekly Retraining (DISABLED - see train_workflow.yml)
-# on: {}

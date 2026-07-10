@@ -28,45 +28,21 @@ jobs:
         run: |
           cat > .env << EOF
           GLOBALPULSE_DB_URL=${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_KEY }}
           CRICAPI_KEY=${{ secrets.CRICAPI_KEY }}
           OPENWEATHER_KEY=${{ secrets.OPENWEATHER_KEY }}
           GLOBALPULSE_MODE=production
           EOF
 
-      - name: Fetch today's match results & update predictions
-        run: |
-          python -c "
-          import os
-          from dotenv import load_dotenv
-          load_dotenv()
-          from core.memory.schema import get_engine, create_tables
-          from core.etl.connectors.live_connector import ScoreConnector
-
-          engine = get_engine()
-          create_tables(engine)
-
-          # Fetch recent completed results and mark predictions correct/wrong
-          scorer = ScoreConnector()
-          results = scorer.fetch_recent_results(limit=20)
-          print(f'Fetched {len(results)} recent results')
-
-          from sqlalchemy.orm import Session
-          from sqlalchemy import text
-          with Session(engine) as session:
-              for result in results:
-                  match_id = result.get('match_id')
-                  winner = result.get('winner', '')
-                  if not match_id or not winner:
-                      continue
-                  session.execute(text('''
-                      UPDATE prediction_store
-                      SET actual_winner_id = :winner,
-                          is_correct = (predicted_winner_id = :winner)
-                      WHERE match_id = :mid AND actual_winner_id IS NULL
-                  '''), {'winner': winner.lower().replace(' ', '_'), 'mid': match_id})
-              session.commit()
-              print('Predictions updated in Supabase')
-          "
+      - name: Run verification against latest completed matches
+        run: python core/actions/run_verify.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GLOBALPULSE_MODE: production
 
       - name: Check for new Cricsheet data
         run: |
@@ -79,12 +55,13 @@ jobs:
         continue-on-error: true  # Don't fail workflow if Cricsheet is down
 
       - name: Show database health
-        run: python etl_run.py --status
+        run: python core/actions/verify_pipeline.py
         env:
-          GLOBALPULSE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GLOBALPULSE_MODE: production
 
       - name: Notify on failure
         if: failure()
         run: |
           echo "Daily update failed! Check the Actions log."
-          # Add Slack/Discord webhook here if desired

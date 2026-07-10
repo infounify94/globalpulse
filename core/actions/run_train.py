@@ -74,8 +74,18 @@ def run():
     logging.info(f"training_runs inserted: {run_id}")
 
     # -----------------------------------------------------------------------
-    # 4. Demote all existing champions, then insert new champion
+    # 4. Ensure experiment exists, demote existing champions, then insert new champion
     # -----------------------------------------------------------------------
+    try:
+        supabase.table("experiment_registry").upsert({
+            "experiment_id": "auto_weekly_retrain",
+            "name": "Automated Weekly Retraining",
+            "hypothesis": "Weekly cron retraining of champion XGBoost model",
+            "status": "COMPLETED"
+        }).execute()
+    except Exception as e:
+        logging.warning(f"Could not upsert experiment_registry (may already exist or need DB connection): {e}")
+
     supabase.table("model_registry").update({"is_champion": False}).eq("is_champion", True).execute()
 
     perf = {
@@ -83,6 +93,7 @@ def run():
         "brier_score": brier,
         "log_loss": log_loss,
         "auc_roc": auc_roc,
+
         "roi": roi,
     }
 
