@@ -2,30 +2,47 @@ name: Predict Upcoming Matches
 
 on:
   schedule:
-    - cron: "0 */6 * * *" # Every 6 hours
-  workflow_dispatch:
+    - cron: "0 */6 * * *"  # Every 6 hours
+  workflow_dispatch:         # Allow manual trigger from GitHub UI
 
 jobs:
   predict:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: 'pip'
 
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Predictions
+      - name: Run Prediction Pipeline
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GLOBALPULSE_MODE: production
         run: |
           python core/actions/run_predict.py
 
-      - name: Verify Pipeline Health
+      - name: Verify Pipeline Health After Prediction
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GLOBALPULSE_MODE: production
         run: |
           python core/actions/verify_pipeline.py
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Prediction workflow FAILED! Check GitHub Actions log."

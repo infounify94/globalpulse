@@ -184,6 +184,7 @@ export default function DashboardPage() {
           color="#059669"
           sparkData={sparkAcc}
         />
+        {/* Note: roi is stored as decimal (0.151 = 15.1%) in DB. endpoints.js passes through as-is. */}
         <MetricCard
           label="Active Predictions" loading={ml}
           value={totalPred}
@@ -308,24 +309,32 @@ export default function DashboardPage() {
             <a href="/shadow" style={{ fontSize: 12, color: '#3b5bdb', textDecoration: 'none' }}>View all →</a>
           </div>
           {sl ? <TableSkeleton rows={5} /> : (
-            recent.map((p, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
-                    {p.predicted_winner || '—'}
+            recent.map((p, i) => {
+              // Support both shadow_predictions and prediction_store field names
+              const predWinner = p.predicted_winner || p.predicted_winner_id || '—'
+              const actualWinner = p.actual_winner || p.actual_winner_id || null
+              const isCorrect = p.is_correct ?? (actualWinner && actualWinner === predWinner)
+              return (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
+                      {predWinner.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#94a3b8' }}>{fmtDateTime(p.prediction_timestamp)}</div>
                   </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{fmtDateTime(p.prediction_timestamp)}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>{p.confidence ? `${(p.confidence * 100).toFixed(0)}%` : '—'}</span>
+                    {actualWinner ? (
+                      <span className={`badge ${isCorrect ? 'badge-success' : 'badge-danger'}`}>
+                        {isCorrect ? 'Correct' : 'Wrong'}
+                      </span>
+                    ) : (
+                      <span className="badge badge-warn">Pending</span>
+                    )}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', align: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 12, color: '#64748b' }}>{p.confidence ? `${(p.confidence * 100).toFixed(0)}%` : '—'}</span>
-                  {p.actual_winner && (
-                    <span className={`badge ${p.actual_winner === p.predicted_winner ? 'badge-success' : 'badge-danger'}`}>
-                      {p.actual_winner === p.predicted_winner ? 'Correct' : 'Wrong'}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))
+              )
+            })
           )}
           {!sl && recent.length === 0 && (
             <div style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>

@@ -2,20 +2,23 @@ name: Train Champion Model
 
 on:
   schedule:
-    - cron: "0 0 * * 0" # Weekly on Sunday
-  workflow_dispatch:
+    - cron: "0 0 * * 0"   # Every Sunday at midnight UTC
+  workflow_dispatch:        # Allow manual trigger from GitHub UI
 
 jobs:
   train:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: 'pip'
 
       - name: Install Dependencies
         run: |
@@ -23,5 +26,24 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Training Pipeline
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GLOBALPULSE_MODE: production
         run: |
           python core/actions/run_train.py
+
+      - name: Verify Pipeline Health After Training
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GLOBALPULSE_MODE: production
+        run: |
+          python core/actions/verify_pipeline.py
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Training workflow FAILED! Check GitHub Actions log."
+          echo "Champion model was NOT updated."
