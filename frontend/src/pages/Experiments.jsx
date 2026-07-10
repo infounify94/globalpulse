@@ -1,11 +1,11 @@
 import DashboardLayout from '../layouts/DashboardLayout'
 import { useExperiments } from '../hooks/useApi'
 import { TableSkeleton } from '../components/ui/Skeleton'
-import { fmtDate } from '../utils/format'
+import { fmtDateTime } from '../utils/format'
 
 export default function ExperimentsPage() {
   const { data, isLoading } = useExperiments()
-  const experiments = data?.experiments || (Array.isArray(data) ? data : [])
+  const experiments = Array.isArray(data) ? data : []
 
   return (
     <DashboardLayout title="Experiments" subtitle="All training runs, hyperparameters, and evaluation metrics">
@@ -14,26 +14,46 @@ export default function ExperimentsPage() {
         {isLoading ? <TableSkeleton rows={10} /> : (
           <table className="gp-table">
             <thead>
-              <tr><th>Run ID</th><th>Algorithm</th><th>Status</th><th>Accuracy</th><th>Brier</th><th>Dataset</th><th>Date</th></tr>
+              <tr>
+                <th>Experiment ID</th>
+                <th>Status</th>
+                <th>Algorithm</th>
+                <th>Dataset</th>
+                <th>Feature Version</th>
+                <th>Accuracy</th>
+                <th>Brier Score</th>
+                <th>Start Time (UTC)</th>
+              </tr>
             </thead>
             <tbody>
               {experiments.map((e, i) => (
                 <tr key={i}>
-                  <td style={{ fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>{(e.id || '').slice(0, 12)}…</td>
-                  <td style={{ fontWeight: 600 }}>{e.algorithm}</td>
-                  <td>
-                    <span className={`badge ${e.is_champion ? 'badge-success' : 'badge-info'}`}>
-                      {e.is_champion ? 'Champion' : 'Challenger'}
-                    </span>
+                  <td style={{ fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>
+                    {e.id || '—'}
                   </td>
-                  <td style={{ color: '#16a34a', fontWeight: 700 }}>{e.accuracy_mean ? `${(e.accuracy_mean * 100).toFixed(2)}%` : '—'}</td>
-                  <td>{e.brier_score ? e.brier_score.toFixed(4) : '—'}</td>
-                  <td style={{ fontSize: 12, color: '#64748b' }}>{e.dataset_version || `${e.train_start_year}–${e.train_end_year}`}</td>
-                  <td style={{ fontSize: 12, color: '#94a3b8' }}>{fmtDate(e.created_at)}</td>
+                  <td>
+                    {e.status === 'COMPLETED' ? (
+                      <span className="badge badge-success">Completed</span>
+                    ) : (
+                      <span className="badge badge-warn">Running</span>
+                    )}
+                  </td>
+                  <td style={{ fontWeight: 600 }}>{e.algorithm}</td>
+                  <td style={{ fontSize: 12, color: '#64748b' }}>{e.dataset_version}</td>
+                  <td style={{ fontSize: 12, color: '#64748b' }}>{e.feature_version}</td>
+                  <td style={{ color: '#16a34a', fontWeight: 700 }}>
+                    {e.accuracy_mean != null ? `${(e.accuracy_mean * 100).toFixed(2)}%` : '—'}
+                  </td>
+                  <td>{e.brier_score != null ? e.brier_score.toFixed(4) : '—'}</td>
+                  <td style={{ fontSize: 11, color: '#94a3b8' }}>{fmtDateTime(e.start_time)}</td>
                 </tr>
               ))}
               {experiments.length === 0 && (
-                <tr><td colSpan={7} style={{ textAlign: 'center', color: '#94a3b8', padding: 32 }}>No experiments yet.</td></tr>
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0' }}>
+                    No experiments found. Run the training pipeline.
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
