@@ -19,7 +19,7 @@ export default function PredictionsPage() {
           <table className="gp-table">
             <thead>
               <tr>
-                <th>Match</th><th>Date</th><th>Type</th><th>Predicted Winner</th><th>Win Prob</th><th>Confidence</th><th>Ancient Signal</th>
+                <th>Match</th><th>Date & Time</th><th>Venue</th><th>Type</th><th>Predicted Winner</th><th>Win Prob</th><th>Confidence</th><th>Ancient Signal</th>
               </tr>
             </thead>
             <tbody>
@@ -27,10 +27,15 @@ export default function PredictionsPage() {
                 const prob = m.team_a_probability ?? 0.5
                 const winner = prob > 0.5 ? m.team_a : m.team_b
                 const winProb = prob > 0.5 ? prob : 1 - prob
+                let dominantSignal = m.ancient_dominant || m.ancient_signals?.dominant || '—'
+                if (dominantSignal === '—' && m.ancient_signals && typeof m.ancient_signals === 'string') {
+                  try { const parsed = JSON.parse(m.ancient_signals); dominantSignal = parsed.dominant || `Sun ${Math.round((parsed.sun_lon||0)*10)/10}°`; } catch(e){}
+                }
                 return (
                   <tr key={i}>
                     <td><span style={{ fontWeight: 600 }}>{m.team_a}</span> <span style={{ color: '#94a3b8' }}>vs</span> <span style={{ fontWeight: 600 }}>{m.team_b}</span></td>
-                    <td style={{ color: '#64748b' }}>{fmtDateTime(m.date)}</td>
+                    <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{fmtDateTime(m.date)}</td>
+                    <td style={{ color: '#475569', fontWeight: 500 }}>{m.venue || m.location || m.match_type || 'Unknown Venue'}</td>
                     <td><span className="badge badge-info">{m.match_type || 'T20'}</span></td>
                     <td style={{ fontWeight: 600, color: '#3b5bdb' }}>{winner}</td>
                     <td><strong>{(winProb * 100).toFixed(1)}%</strong></td>
@@ -40,13 +45,13 @@ export default function PredictionsPage() {
                       </span>
                     </td>
                     <td style={{ color: '#64748b', fontSize: 12 }}>
-                      {m.ancient_signals?.dominant || '—'}
+                      {dominantSignal}
                     </td>
                   </tr>
                 )
               })}
               {(!Array.isArray(matches) || matches.length === 0) && (
-                <tr><td colSpan={7} style={{ textAlign: 'center', color: '#94a3b8', padding: 32 }}>No upcoming matches found.</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', color: '#94a3b8', padding: 32 }}>No upcoming matches found.</td></tr>
               )}
             </tbody>
           </table>

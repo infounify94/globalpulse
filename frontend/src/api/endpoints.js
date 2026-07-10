@@ -84,7 +84,7 @@ export const fetchMatches = async () => {
     .from('prediction_store')
     .select('*')
     .eq('prediction_status', 'PENDING')
-    .order('prediction_timestamp', { ascending: false })
+    .order('date', { ascending: true })
     .limit(50)
 
   if (error) throw error
@@ -104,6 +104,7 @@ export const fetchMatches = async () => {
       ...m,
       team_a: teamA,
       team_b: teamB,
+      venue: m.venue || m.location || m.match_type || 'Cricket Venue',
       team_a_probability: prob,
     }
   })
@@ -145,11 +146,24 @@ export const fetchHistory = async () => {
     .from('prediction_store')
     .select('*')
     .eq('prediction_status', 'VERIFIED')
-    .order('prediction_timestamp', { ascending: false })
+    .order('date', { ascending: false })
     .limit(100)
 
   if (error) throw error
-  return data || []
+  return (data || []).map(m => {
+    const teamA = m.team_a ? m.team_a.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Team A'
+    const teamB = m.team_b ? m.team_b.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Team B'
+    const prob = m.team_a_probability ?? m.probability ?? 0.5
+    const actual = m.actual_winner_id ? m.actual_winner_id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '—'
+    return {
+      ...m,
+      team_a: teamA,
+      team_b: teamB,
+      venue: m.venue || m.location || m.match_type || 'Cricket Venue',
+      team_a_probability: prob,
+      actual_winner_id: actual,
+    }
+  })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

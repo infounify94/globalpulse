@@ -77,10 +77,11 @@ def run():
 
         is_correct = (predicted == actual_winner)
 
-        # Update prediction_store with actual verified outcome
+        # Update prediction_store with actual verified outcome and status
         try:
             supabase.table("prediction_store").update({
-                "actual_winner_id": actual_winner
+                "actual_winner_id": actual_winner,
+                "prediction_status": "VERIFIED"
             }).eq("match_id", match_id).execute()
             verified_count += 1
             logging.info(f"Verified match {match_id}: predicted={predicted}, actual={actual_winner} | Correct={is_correct}")

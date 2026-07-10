@@ -173,19 +173,23 @@ def run():
         pred_winner = team_a if prob >= 0.5 else team_b
         confidence = float(round(abs(prob - 0.5) * 2.0, 4))
 
+        ancient_summary = f"Sun {round(astro_features.get('sun_lon', 120.5), 1)}° · Moon {round(astro_features.get('moon_lon', 85.2), 1)}°"
         pred_record = {
             "match_id": match_id,
             "date": date_str if isinstance(date_str, str) else date_str.isoformat(),
             "team_a": team_a,
             "team_b": team_b,
             "match_type": match_type,
+            "venue": str(venue),
             "predicted_winner_id": pred_winner,
             "probability": float(round(prob, 4)),
             "confidence": confidence,
             "model_version": champion_version,
             "actual_winner_id": None,
+            "prediction_status": "PENDING",
+            "prediction_timestamp": datetime.utcnow().isoformat(),
             "features_used": json.dumps({"statistical": feats, "astronomy": astro_features}),
-            "ancient_signals": json.dumps(astro_features)
+            "ancient_signals": json.dumps({"dominant": ancient_summary, **astro_features})
         }
 
         try:
@@ -243,6 +247,14 @@ def run():
         logging.info(f"dashboard_snapshots updated with dynamic metrics: acc={dyn_acc:.1%}, roi={dyn_roi:.1%}")
     except Exception as e:
         logging.warning(f"Failed inserting dynamic dashboard snapshot: {e}")
+
+    # Enforce prediction_status and prediction_timestamp consistency across ALL rows for Vercel UI visibility
+    try:
+        logging.info("Enforcing prediction_status consistency for Vercel UI queries...")
+        supabase.table("prediction_store").update({"prediction_status": "VERIFIED"}).not_.is_("actual_winner_id", "null").execute()
+        supabase.table("prediction_store").update({"prediction_status": "PENDING"}).is_("actual_winner_id", "null").execute()
+    except Exception as e:
+        logging.warning(f"Failed enforcing prediction_status consistency: {e}")
 
     print(f"::set-output name=predictions_count::{new_predictions_count}")
 

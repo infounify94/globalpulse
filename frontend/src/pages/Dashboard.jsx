@@ -87,6 +87,7 @@ function MatchRow({ match }) {
   const teamB = match.team_b || 'Team B'
   const winner = prob > 0.5 ? teamA : teamB
   const winProb = prob > 0.5 ? prob : 1 - prob
+  const venueStr = match.venue || match.location || match.match_type || 'Cricket Venue'
 
   return (
     <div style={{
@@ -97,8 +98,8 @@ function MatchRow({ match }) {
         <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
           {teamA} <span style={{ color: '#94a3b8', fontWeight: 400 }}>vs</span> {teamB}
         </div>
-        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-          {match.tournament || match.match_type || 'Match'} · {fmtDateTime(match.date)}
+        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+          <strong style={{ color: '#475569' }}>{venueStr}</strong> · {match.match_type || 'T20'} · {fmtDateTime(match.date)}
         </div>
       </div>
       <div style={{ textAlign: 'right' }}>
