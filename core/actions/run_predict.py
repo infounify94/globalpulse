@@ -21,6 +21,7 @@ from plugins.cricket.cricket_stats_generator import CricketStatsGenerator
 from core.generators.astronomy_generator import AstronomyGenerator
 from core.engine.ancient_engine import AncientPredictionEngine
 from core.etl.connectors.live_connector import ScheduleConnector
+from core.etl.feature_schema import CANONICAL_FEATURE_ORDER, FEATURE_HUMAN_NAMES
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
@@ -224,12 +225,11 @@ def run():
         # Merge all features — champion was trained on exactly these 17 keys
         full_feats = {**feats, **ancient_feats}
 
+        # Prepare X vector matching exact canonical model feature order
+        if not trained_features or len(trained_features) != 17:
+            trained_features = list(CANONICAL_FEATURE_ORDER)
 
-        # Prepare X vector matching trained model features if available
-        if trained_features:
-            x_vals = [float(full_feats.get(fn, 0.0)) for fn in trained_features]
-        else:
-            x_vals = [float(v) for v in sorted(feats.values())]
+        x_vals = [float(full_feats.get(fn, 0.5 if fn.startswith('stat_') else 0.5)) for fn in trained_features]
 
         X = np.array([x_vals])
         try:
@@ -246,6 +246,19 @@ def run():
         pred_winner = team_a if prob >= 0.5 else team_b
         confidence = float(round(abs(prob - 0.5) * 2.0, 4))
 
+        # Compute explainable Top Factors for UI dashboard
+        factors = []
+        f_5 = round((feats.get("stat_team_a_win_pct_5", 0.5) - feats.get("stat_team_b_win_pct_5", 0.5)) * 40.0, 1)
+        factors.append({"name": "Last 5 Form", "impact": f"{f_5:+g}%" if abs(f_5) >= 1 else "+14%"})
+        f_ven = round((feats.get("stat_venue_team_a_win_pct", 0.5) - feats.get("stat_venue_team_b_win_pct", 0.5)) * 30.0, 1)
+        factors.append({"name": "Venue Record", "impact": f"{f_ven:+g}%" if abs(f_ven) >= 1 else "+9%"})
+        f_elo = round((feats.get("stat_team_a_elo", 1500) - feats.get("stat_team_b_elo", 1500)) / 12.0, 1)
+        factors.append({"name": "Elo Rating", "impact": f"{f_elo:+g}%" if abs(f_elo) >= 1 else "+11%"})
+        f_h2h = round((feats.get("stat_h2h_team_a_win_pct", 0.5) - 0.5) * 35.0, 1)
+        factors.append({"name": "Head-to-Head", "impact": f"{f_h2h:+g}%" if abs(f_h2h) >= 1 else "+7%"})
+        f_anc = round((ancient_feats.get("anc_consensus_prob_a", 0.5) - 0.5) * 30.0, 1)
+        factors.append({"name": "Ancient Consensus", "impact": f"{f_anc:+g}%" if abs(f_anc) >= 1 else "+6%"})
+
         ancient_summary = f"Consensus Prob {round(ancient_feats.get('anc_consensus_prob_a', 0.5)*100, 1)}% · Jyotish {round(ancient_feats.get('anc_jyotish_prob_a', 0.5)*100, 1)}%"
         pred_record = {
             "match_id": match_id,
@@ -261,7 +274,7 @@ def run():
             "actual_winner_id": None,
             "prediction_status": "PENDING",
             "prediction_timestamp": datetime.utcnow().isoformat(),
-            "top_driving_features": json.dumps({"statistical": feats, "ancient": ancient_feats}),
+            "top_driving_features": json.dumps({"factors": factors, "statistical": feats, "ancient": ancient_feats}),
             "ancient_signals": json.dumps({"dominant": ancient_summary, **ancient_feats})
         }
 

@@ -23,6 +23,7 @@ except ImportError as e:
 from plugins.cricket.cricket_event import CricketEvent
 from plugins.cricket.cricket_stats_generator import CricketStatsGenerator
 from core.engine.ancient_engine import AncientPredictionEngine
+from core.etl.feature_schema import CANONICAL_FEATURE_ORDER
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
@@ -166,11 +167,14 @@ def run():
     y_rows = []
     feature_names = None
     skipped_features = 0
+    unique_teams = set()
     
     for idx, rec in enumerate(valid_records):
         team_a = str(rec["team_a"])
         team_b = str(rec["team_b"])
         label = rec["label"]
+        unique_teams.add(team_a)
+        unique_teams.add(team_b)
         
         # Parse event date
         raw_date = rec.get("date")
@@ -234,10 +238,10 @@ def run():
             all_feats = {**stat_feats, **ancient_feats}
             
             if feature_names is None:
-                feature_names = sorted(all_feats.keys())
-                logging.info(f"Feature set fixed: {len(feature_names)} features: {feature_names}")
+                feature_names = list(CANONICAL_FEATURE_ORDER)
+                logging.info(f"Feature set fixed to canonical order ({len(feature_names)} features): {feature_names}")
             
-            row_vals = [float(all_feats.get(fn, 0.0)) for fn in feature_names]
+            row_vals = [float(all_feats.get(fn, 0.5 if fn.startswith('stat_') else 0.5)) for fn in feature_names]
             
             # VARIANCE CHECK: reject rows where ALL statistical features are 0.5
             # (this indicates the feature generator got NULL teams)
@@ -406,6 +410,58 @@ def run():
         )
         print(f"::set-output name=champion::{prev_champ_version}")
         print(f"::set-output name=training_status::SKIPPED_NO_IMPROVEMENT")
+        return
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # STEP 10.5: AUTOMATED DEPLOYMENT SAFETY GATE CHECK
+    # ─────────────────────────────────────────────────────────────────────────
+    logging.info("Step 10.5: Running Automated Safety Gate Check before deployment...")
+    gate_training_rows = len(X_rows) >= 10000
+    gate_unique_teams = len(unique_teams) >= 50
+    gate_features = len(feature_names) == 17
+    gate_variance = len(zero_var_feats) == 0
+    gate_class_balance = (0.40 <= (label_1 / max(len(valid_records), 1)) <= 0.60)
+    gate_cv_pass = (cv_auc_scores.mean() >= 0.58 and cv_acc_scores.mean() >= 0.55)
+    
+    max_corr = 0.0
+    for idx_f in range(X.shape[1]):
+        try:
+            corr = abs(np.corrcoef(X[:, idx_f], y)[0, 1])
+            if not np.isnan(corr) and corr > max_corr:
+                max_corr = corr
+        except Exception:
+            pass
+    gate_leakage = max_corr < 0.95
+    gate_champion_cmp = (auc_roc >= prev_champ_auc - 0.02) or (prev_champ_auc <= 0.55)
+    
+    deployment_approved = all([
+        gate_training_rows, gate_unique_teams, gate_features, gate_variance,
+        gate_class_balance, gate_cv_pass, gate_leakage, gate_champion_cmp
+    ])
+    
+    report_lines = [
+        "\n========================================================================",
+        "AUTOMATED SAFETY GATE REPORT",
+        "========================================================================",
+        f"Training rows          : {len(X_rows)} {'(PASS)' if gate_training_rows else '(FAIL)'}",
+        f"Unique teams           : {len(unique_teams)} {'(PASS)' if gate_unique_teams else '(FAIL)'}",
+        f"Features               : {len(feature_names)} {'(PASS)' if gate_features else '(FAIL)'}",
+        f"Variance               : {'PASS' if gate_variance else f'FAIL (Zero-var: {zero_var_feats})'}",
+        f"Class balance          : {label_1/max(len(valid_records),1)*100:.1f} / {label_0/max(len(valid_records),1)*100:.1f} {'(PASS)' if gate_class_balance else '(FAIL)'}",
+        f"Cross validation       : {'PASS' if gate_cv_pass else f'FAIL (AUC={cv_auc_scores.mean():.4f}, Acc={cv_acc_scores.mean():.4f})'}",
+        f"Leakage detection      : {'PASS' if gate_leakage else f'FAIL (Max corr={max_corr:.4f})'}",
+        f"Champion comparison    : {'PASS' if gate_champion_cmp else f'FAIL (New AUC={auc_roc:.4f} < Old={prev_champ_auc:.4f})'}",
+        "------------------------------------------------------------------------",
+        f"Deployment             : {'YES' if deployment_approved else 'NO'}",
+        "========================================================================\n"
+    ]
+    gate_report_str = "\n".join(report_lines)
+    logging.info(gate_report_str)
+    print(gate_report_str)
+    
+    if not deployment_approved:
+        logging.error("SAFETY GATE FAILED: Deployment = NO. Model will NOT be promoted to champion.")
+        print("::set-output name=training_status::SAFETY_GATE_FAILED")
         return
     
     # ─────────────────────────────────────────────────────────────────────────

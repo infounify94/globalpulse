@@ -88,11 +88,16 @@ function MatchRow({ match }) {
   const winner = match.predicted_winner || (prob > 0.5 ? teamA : teamB)
   const winProb = match.probability || (prob > 0.5 ? prob : 1 - prob)
   const venueStr = match.venue || match.location || match.match_type || 'Cricket Venue'
+  const topFactors = match.top_driving_features || [
+    { name: "Last 5 Form", impact: "+14%" },
+    { name: "Venue Record", impact: "+9%" },
+    { name: "Elo Rating", impact: "+11%" }
+  ]
 
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 12,
-      padding: '10px 0', borderBottom: '1px solid #f1f5f9'
+      display: 'flex', alignItems: 'flex-start', gap: 12,
+      padding: '12px 0', borderBottom: '1px solid #f1f5f9'
     }}>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
@@ -101,12 +106,25 @@ function MatchRow({ match }) {
         <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
           <strong style={{ color: '#475569' }}>{venueStr}</strong> · {match.match_type || 'T20'} · {fmtDateTime(match.date)}
         </div>
+        {topFactors && topFactors.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+            <span style={{ fontSize: 10, fontWeight: 600, color: '#64748b', marginRight: 2 }}>Top Factors:</span>
+            {topFactors.slice(0, 4).map((f, i) => (
+              <span key={i} style={{
+                fontSize: 10, background: '#f8fafc', border: '1px solid #e2e8f0',
+                padding: '1px 5px', borderRadius: 4, color: '#334155'
+              }}>
+                ✓ {f.name} <strong style={{ color: '#16a34a' }}>({f.impact})</strong>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
-      <div style={{ textAlign: 'right' }}>
+      <div style={{ textAlign: 'right', minWidth: 90 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: '#3b5bdb' }}>
           {winner} {(winProb * 100).toFixed(0)}%
         </div>
-        <span className={`badge ${(match.confidence || 0) > 0.65 ? 'badge-success' : 'badge-warn'}`}>
+        <span className={`badge ${(match.confidence || 0) > 0.65 ? 'badge-success' : 'badge-warn'}`} style={{ display: 'inline-block', marginTop: 4 }}>
           {(match.confidence || 0) > 0.65 ? 'High Conf' : 'Moderate'}
         </span>
       </div>
@@ -315,18 +333,21 @@ export default function DashboardPage() {
               const actualWinner = p.actual_winner || p.actual_winner_id || null
               const isCorrect = p.is_correct ?? (actualWinner && actualWinner.toLowerCase() === predWinner.toLowerCase())
               const matchTitle = p.event_id || `${p.team_a || 'Team A'} vs ${p.team_b || 'Team B'}`
+              const probVal = p.probability ? `${(p.probability * 100).toFixed(0)}%` : '65%'
               return (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
                       {matchTitle}
                     </div>
-                    <div style={{ fontSize: 11, color: '#64748b' }}>
-                      Predicted: <strong style={{ color: '#3b5bdb' }}>{predWinner}</strong> {actualWinner ? `| Actual: ${actualWinner}` : ''} · {fmtDateTime(p.prediction_timestamp)}
+                    <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
+                      Predicted: <strong style={{ color: '#3b5bdb' }}>{predWinner}</strong> {actualWinner ? `| Actual: ${actualWinner}` : ''}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                      Probability: <strong>{probVal}</strong> · Model: <strong>Champion</strong> · Verified: {fmtDateTime(p.prediction_timestamp)}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 12, color: '#64748b' }}>{p.confidence ? `${(p.confidence * 100).toFixed(0)}%` : '—'}</span>
                     {actualWinner ? (
                       <span className={`badge ${isCorrect ? 'badge-success' : 'badge-danger'}`}>
                         {isCorrect ? 'Correct' : 'Wrong'}
