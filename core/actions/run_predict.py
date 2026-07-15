@@ -6,7 +6,7 @@ import json
 import logging
 import tempfile
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -106,7 +106,7 @@ def run():
             for row in cur.fetchall():
                 upcoming_events.append({
                     "match_id": row[0],
-                    "date": str(row[1]) if row[1] else datetime.utcnow().strftime("%Y-%m-%d"),
+                    "date": str(row[1]) if row[1] else datetime.now(timezone.utc).strftime("%Y-%m-%d"),
                     "venue": str(row[2]) if row[2] else "MCG",
                     "team_a": row[3],
                     "team_b": row[4],
@@ -140,7 +140,7 @@ def run():
                 "match_id": s.get("match_id") or f"match_{uuid.uuid4().hex[:8]}",
                 "team_a": s.get("team_a", "India"),
                 "team_b": s.get("team_b", "Australia"),
-                "date": s.get("date", datetime.utcnow().strftime("%Y-%m-%d")),
+                "date": s.get("date", datetime.now(timezone.utc).strftime("%Y-%m-%d")),
                 "venue": s.get("venue", "MCG"),
             })
 
@@ -153,7 +153,7 @@ def run():
                     "match_id": p["match_id"],
                     "team_a": p.get("team_a") or "India",
                     "team_b": p.get("team_b") or "Australia",
-                    "date": p.get("date") or datetime.utcnow().strftime("%Y-%m-%d"),
+                    "date": p.get("date") or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
                     "venue": p.get("venue") or "MCG",
                     "match_type": p.get("match_type") or "ODI",
                 })
@@ -181,11 +181,11 @@ def run():
             try:
                 ev_dt = datetime.fromisoformat(date_str[:19])
             except Exception:
-                ev_dt = datetime.utcnow()
+                ev_dt = datetime.now(timezone.utc)
         elif isinstance(date_str, datetime):
             ev_dt = date_str
         else:
-            ev_dt = datetime.utcnow()
+            ev_dt = datetime.now(timezone.utc)
 
         event = CricketEvent(
             id=str(match_id or uuid.uuid4()),
@@ -317,7 +317,7 @@ def run():
             "model_version": champion_version,
             "actual_winner_id": None,
             "prediction_status": pred_status,
-            "prediction_timestamp": datetime.utcnow().isoformat(),
+            "prediction_timestamp": datetime.now(timezone.utc).isoformat(),
             "top_driving_features": json.dumps({"factors": factors, "statistical": feats, "ancient": ancient_feats, "recommendation": recommendation, "confidence_level": confidence_level, "expected_edge": edge}),
             "ancient_signals": json.dumps({"dominant": ancient_summary, **ancient_feats})
         }
@@ -352,7 +352,7 @@ def run():
                     "predicted_winner": team_a if shadow_prob >= 0.5 else team_b,
                     "probability": float(round(shadow_prob, 4)),
                     "confidence": float(round(abs(shadow_prob - 0.5) * 2.0, 4)),
-                    "prediction_timestamp": datetime.utcnow().isoformat(),
+                    "prediction_timestamp": datetime.now(timezone.utc).isoformat(),
                     "prediction_status": "PENDING",
                     "top_shap_features": json.dumps({"shadow_version": sm_ver, "note": "challenger_inference_pending"})
                 }
@@ -385,7 +385,7 @@ def run():
 
             supabase.table("dashboard_snapshots").insert({
                 "id": str(uuid.uuid4()),
-                "snapshot_time": datetime.utcnow().isoformat(),
+                "snapshot_time": datetime.now(timezone.utc).isoformat(),
                 "model_version": snap_model_version,
                 "accuracy": dyn_acc,
                 "brier": dyn_brier,
@@ -395,7 +395,7 @@ def run():
                 "dataset_version": "v1.0.2",
                 "drift_percentage": 0.0,
                 "previous_champion": "v0.9.8",
-                "retrain_date": datetime.utcnow().isoformat(),
+                "retrain_date": datetime.now(timezone.utc).isoformat(),
             }).execute()
             logging.info(f"dashboard_snapshots updated: acc={dyn_acc:.1%}, brier={dyn_brier}, roi={dyn_roi:.1%}")
     except Exception as e:
@@ -410,7 +410,15 @@ def run():
     except Exception as e:
         logging.warning(f"Failed enforcing prediction_status consistency: {e}")
 
-    print(f"::set-output name=predictions_count::{new_predictions_count}")
+    
+    # Write output for GitHub Actions (using GITHUB_OUTPUT environment file)
+    gh_output = os.environ.get('GITHUB_OUTPUT')
+    if gh_output:
+        with open(gh_output, 'a') as f:
+            f.write(f"predictions_count={new_predictions_count}\n")
+    else:
+        # Fallback for local execution
+        print(f"predictions_count={new_predictions_count}")
 
 
 if __name__ == "__main__":
