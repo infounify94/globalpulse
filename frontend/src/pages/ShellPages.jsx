@@ -102,8 +102,8 @@ export function HistoricalReplayPage() {
             </thead>
             <tbody>
               {(Array.isArray(history) ? history : []).map((m, i) => {
-                // Phase 15: Read from backend-computed fields. No frontend calculations.
-                const predicted  = m.predicted_winner_id || '—'
+                // Phase 9 fix: predicted_winner is now formatted by fetchHistory; fall back gracefully
+                const predicted  = m.predicted_winner || m.predicted_winner_id || '—'
                 const actual     = m.actual_winner_id    || '—'
                 const isCorrect  = m.is_correct          // computed in fetchHistory
 
@@ -217,12 +217,6 @@ export function SettingsPage() {
             <tr>
               <td style={{ color: '#64748b' }}>Data Source</td>
               <td style={{ fontWeight: 600, color: '#16a34a' }}>Supabase (Production)</td>
-            </tr>
-            <tr>
-              <td style={{ color: '#64748b' }}>Audit Status</td>
-              <td>
-                <span className="badge badge-success">Phase 1–17 Forensic Audit Passed</span>
-              </td>
             </tr>
           </tbody>
         </table>

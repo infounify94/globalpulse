@@ -74,7 +74,7 @@ export default function PredictionsPage() {
               })}
               {(!Array.isArray(matches) || matches.length === 0) && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                       <AlertTriangle size={24} color="#d97706" />
                       <div>No upcoming matches found in the prediction store.</div>

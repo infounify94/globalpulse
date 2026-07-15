@@ -85,11 +85,11 @@ function ConfidenceDonut({ data }) {
 // Phase 15: NO fabricated data — if top_driving_features is null, shows nothing
 // ─────────────────────────────────────────────────────────────────────────────
 function MatchRow({ match }) {
-  const prob = match.team_a_probability ?? 0.5
+  // Phase 9 fix: Never synthesize winner from probability. Show '—' if null.
   const teamA = match.team_a || 'Unknown Team A'
   const teamB = match.team_b || 'Unknown Team B'
-  const winner = match.predicted_winner || (prob >= 0.5 ? teamA : teamB)
-  const winProb = match.probability ?? (prob >= 0.5 ? prob : 1 - prob)
+  const winner = match.predicted_winner || null
+  const winProb = match.probability ?? null
   const venueStr = match.venue || null
   const topFactors = match.top_driving_features  // null if no real data — do not fake it
 
@@ -123,7 +123,10 @@ function MatchRow({ match }) {
       </div>
       <div style={{ textAlign: 'right', minWidth: 90 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: '#3b5bdb' }}>
-          {winner} {winProb != null ? `${(winProb * 100).toFixed(0)}%` : '—'}
+          {winner
+            ? `${winner}${winProb != null ? ` ${(winProb * 100).toFixed(0)}%` : ''}`
+            : '—'
+          }
         </div>
         {match.confidence != null && (
           <span
@@ -258,9 +261,66 @@ export default function DashboardPage() {
             <a href="/predictions" style={{ fontSize: 12, color: '#3b5bdb', textDecoration: 'none' }}>View all →</a>
           </div>
           {mml ? <TableSkeleton rows={4} /> :
-            (Array.isArray(matches) ? matches : []).slice(0, 4).map((m, i) => <MatchRow key={i} match={m} />)
-          }
-          {!mml && (!Array.isArray(matches) || matches.length === 0) && (
+            (Array.isArray(matches) ? matches : []).length > 0 ? (
+          <table>
+            <thead>
+              <tr>
+                <th>Match</th>
+                <th>Date</th>
+                <th>Probability</th>
+                <th>Confidence</th>
+                <th>Recommendation</th>
+                <th>Actual</th>
+                <th>Result</th>
+                <th>Reasons</th>
+              </tr>
+            </thead>
+            <tbody>
+              {matches.map(r => (
+                <tr key={r.id}>
+                  <td>
+                    <div style={{ fontWeight: 500, color: '#0f172a' }}>{r.team1} vs {r.team2}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8' }}>{r.venue}</div>
+                  </td>
+                  <td style={{ fontSize: 12, color: '#64748b' }}>{fmtDateTime(r.match_date)}</td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ width: 40, height: 4, background: '#f1f5f9', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', background: '#3b5bdb', width: `${Math.round(r.probability * 100)}%` }} />
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: '#0f172a' }}>{Math.round(r.probability * 100)}%</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span style={{
+                      padding: '2px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                      background: r.confidence === 'HIGH' ? '#dcfce7' : r.confidence === 'MEDIUM' ? '#fef08a' : '#fee2e2',
+                      color: r.confidence === 'HIGH' ? '#166534' : r.confidence === 'MEDIUM' ? '#854d0e' : '#991b1b'
+                    }}>
+                      {r.confidence || "WAITING"}
+                    </span>
+                  </td>
+                  <td>
+                    <span style={{ fontWeight: 600, fontSize: 12, color: r.recommendation === '✅ BET' ? '#166534' : '#64748b' }}>
+                      {r.recommendation || "N/A"}
+                    </span>
+                  </td>
+                  <td style={{ fontSize: 12, color: '#0f172a' }}>{r.actual_winner || '—'}</td>
+                  <td>
+                    {r.actual_winner ? (
+                      r.actual_winner === r.predicted_winner
+                        ? <CheckCircle size={14} color="#10b981" />
+                        : <AlertTriangle size={14} color="#ef4444" />
+                    ) : <span style={{ fontSize: 12, color: '#94a3b8' }}>Pending</span>}
+                  </td>
+                  <td style={{ fontSize: 10, color: '#64748b', maxWidth: 150 }}>
+                    {(r.reasons || []).join(", ") || "No reasons generated."}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+            ) : (
             <div style={{ color: '#94a3b8', fontSize: 12, padding: '20px 0', textAlign: 'center' }}>
               <AlertTriangle size={20} style={{ marginBottom: 8, color: '#d97706' }} />
               <div>No upcoming predictions in database.</div>

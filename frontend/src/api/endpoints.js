@@ -201,17 +201,28 @@ export const fetchMatches = async () => {
 
     // Phase 12: Parse real top_driving_features from DB — NO hardcoded fallback
     let topFactors = []
+    let recommendation = "N/A"
+    let confidence_level = "WAITING"
+    let edge = 0.0
+    
     try {
       const raw = typeof m.top_driving_features === 'string'
         ? JSON.parse(m.top_driving_features)
         : m.top_driving_features
       if (raw && Array.isArray(raw.factors)) {
         topFactors = raw.factors
+        recommendation = raw.recommendation || "N/A"
+        confidence_level = raw.confidence_level || "WAITING"
+        edge = raw.expected_edge || 0.0
       } else if (raw && typeof raw === 'object') {
         // Handle flat object format: { feature: importance }
         topFactors = Object.entries(raw)
+          .filter(([name]) => !['recommendation', 'confidence_level', 'expected_edge'].includes(name))
           .map(([name, impact]) => ({ name, impact: typeof impact === 'number' ? impact.toFixed(4) : String(impact) }))
           .slice(0, 5)
+        recommendation = raw.recommendation || "N/A"
+        confidence_level = raw.confidence_level || "WAITING"
+        edge = raw.expected_edge || 0.0
       }
     } catch (_) { /* malformed JSON — leave empty */ }
 
@@ -222,7 +233,12 @@ export const fetchMatches = async () => {
       predicted_winner:     predWinner,
       venue:                m.venue && m.venue !== 'nan' ? m.venue : null,
       team_a_probability:   prob,
+      probability:          prob,
       top_driving_features: topFactors.length > 0 ? topFactors : null,
+      recommendation,
+      confidence: confidence_level,
+      expected_edge: edge,
+      reasons: topFactors.map(f => `${f.name}: ${f.impact}`),
     }
   })
 }
@@ -282,6 +298,8 @@ export const fetchHistory = async () => {
     const teamA  = formatTeam(m.team_a)
     const teamB  = formatTeam(m.team_b)
     const actual = formatTeam(m.actual_winner_id)
+    // Phase 9 fix: Format predicted_winner_id just like actual_winner_id
+    const predicted = formatTeam(m.predicted_winner_id)
     const prob   = m.probability ?? m.team_a_probability ?? null
 
     // Phase 5: is_correct only when actual_winner is real
@@ -291,12 +309,13 @@ export const fetchHistory = async () => {
 
     return {
       ...m,
-      team_a:             teamA,
-      team_b:             teamB,
-      venue:              m.venue && m.venue !== 'nan' ? m.venue : '—',
-      team_a_probability: prob,
-      actual_winner_id:   actual,
-      is_correct:         isCorrect,
+      team_a:              teamA,
+      team_b:              teamB,
+      venue:               m.venue && m.venue !== 'nan' ? m.venue : '—',
+      team_a_probability:  prob,
+      predicted_winner:    predicted,
+      actual_winner_id:    actual,
+      is_correct:          isCorrect,
     }
   })
 }

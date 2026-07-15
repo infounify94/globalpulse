@@ -62,8 +62,8 @@ export default function ModelsPage() {
                 { label: 'Brier',      val: champion.brier_score   != null ? champion.brier_score.toFixed(4) : '—', color: '#7c3aed' },
                 { label: 'Log Loss',   val: champion.log_loss      != null ? champion.log_loss.toFixed(4)   : '—', color: '#0891b2' },
               ].map(({ label, val, color }) => (
-                <div key={label} style={{ textAlign: 'center', minWidth: 80 }}>
-                  <div style={{ fontSize: 10, color: '#94a3b8' }}>{label}</div>
+                <div key={label} style={{ textAlign: 'center', minWidth: 90, padding: '0 8px' }}>
+                  <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 4 }}>{label}</div>
                   <div style={{ fontSize: 20, fontWeight: 700, color }}>{val}</div>
                 </div>
               ))}

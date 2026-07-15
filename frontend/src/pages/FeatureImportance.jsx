@@ -25,8 +25,8 @@ export default function FeatureImportancePage() {
 
   return (
     <DashboardLayout
-      title="Feature Importance"
-      subtitle="Model-derived feature rankings from the champion model"
+      title="Research Mode (Experimental Features)"
+      subtitle="Live view of feature contributions to the prediction engine. Experimental features must pass determinism before entering production."
     >
       {/* Context banner */}
       {champVersion && (
@@ -110,8 +110,9 @@ export default function FeatureImportancePage() {
                       </td>
                       <td>
                         <span className={`badge ${
-                          f.feature_type === 'ancient' ? 'badge-warn' :
-                          f.feature_type === 'statistical' ? 'badge-info' :
+                          f.feature_type === 'ancient'      ? 'badge-warn'    :
+                          f.feature_type === 'astronomical' ? 'badge-purple'  :
+                          f.feature_type === 'sports_math'  ? 'badge-success' :
                           'badge-info'
                         }`}>
                           {f.feature_type || 'statistical'}

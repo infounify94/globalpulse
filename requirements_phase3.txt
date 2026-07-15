@@ -1,0 +1,4 @@
+skyfield
+beautifulsoup4
+requests
+google-generativeai

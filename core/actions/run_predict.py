@@ -22,6 +22,8 @@ from core.generators.astronomy_generator import AstronomyGenerator
 from core.engine.ancient_engine import AncientPredictionEngine
 from core.etl.connectors.live_connector import ScheduleConnector
 from core.etl.feature_schema import CANONICAL_FEATURE_ORDER, FEATURE_HUMAN_NAMES
+from core.api.live_data_client import LiveDataClient
+from core.agents.data_quality_agent import DataQualityAgent
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
@@ -162,6 +164,8 @@ def run():
     logging.info(f"Processing {len(upcoming_events)} upcoming fixtures...")
     stats_gen = CricketStatsGenerator(supabase)
     ancient_engine = AncientPredictionEngine()
+    live_client = LiveDataClient()
+    dq_agent = DataQualityAgent()
     new_predictions_count = 0
 
     for fix in upcoming_events:
@@ -194,73 +198,112 @@ def run():
             team_b=str(team_b)
         )
 
-        # Generate statistical features using the same fixed CricketStatsGenerator
-        feats = stats_gen.generate(event)
+        # Integrate Data Quality Gatekeeper
+        match_info = live_client.get_match_info(match_id)
+        playing_xi = live_client.get_fantasy_squad(match_id)
+        match_data = {
+            "playing_xi": playing_xi, 
+            "toss_winner": match_info.get("toss_winner", "Pending"), 
+            "status": match_info.get("status", "upcoming")
+        }
+        
+        is_valid, dq_reason, dq_status = dq_agent.verify_live_match(match_data)
+        
+        if not is_valid:
+            logging.info(f"Gatekeeper blocked {team_a} vs {team_b}: {dq_reason}")
+            prob = 0.5
+            pred_winner = team_a
+            confidence = 0.0
+            confidence_level = "WAITING"
+            recommendation = "WAITING"
+            edge = 0.0
+            factors = [{"name": "Status", "impact": dq_status}]
+            ancient_summary = "N/A"
+            ancient_feats = {}
+            feats = {}
+            pred_status = dq_status
+        else:
+            # Generate statistical features using the same fixed CricketStatsGenerator
+            feats = stats_gen.generate(event)
 
-        # Generate ancient signals (same 6 features the champion was trained on)
-        try:
-            match_date_obj = ev_dt.date() if hasattr(ev_dt, 'date') else ev_dt
-            ancient_result = ancient_engine.predict(
-                team_a=str(team_a),
-                team_b=str(team_b),
-                match_date=match_date_obj,
-                venue=str(venue),
-            )
-            ancient_feats = {
-                "anc_consensus_prob_a": float(ancient_result["consensus"]["team_a_prob"]),
-                "anc_consensus_confidence": float(ancient_result["consensus"]["confidence"]),
-                "anc_jyotish_prob_a": float(ancient_result["systems"][0]["team_a_prob"]),
-                "anc_babylonian_prob_a": float(ancient_result["systems"][1]["team_a_prob"]),
-                "anc_numerology_prob_a": float(ancient_result["systems"][2]["team_a_prob"]),
-                "anc_pancha_bhuta_prob_a": float(ancient_result["systems"][3]["team_a_prob"]),
-            }
-        except Exception as anc_err:
-            logging.debug(f"Ancient engine fallback for {team_a} vs {team_b}: {anc_err}")
-            ancient_feats = {
-                "anc_consensus_prob_a": 0.5, "anc_consensus_confidence": 0.0,
-                "anc_jyotish_prob_a": 0.5, "anc_babylonian_prob_a": 0.5,
-                "anc_numerology_prob_a": 0.5, "anc_pancha_bhuta_prob_a": 0.5,
-            }
+            # Generate ancient signals (same 6 features the champion was trained on)
+            try:
+                match_date_obj = ev_dt.date() if hasattr(ev_dt, 'date') else ev_dt
+                ancient_result = ancient_engine.predict(
+                    team_a=str(team_a),
+                    team_b=str(team_b),
+                    match_date=match_date_obj,
+                    venue=str(venue),
+                )
+                ancient_feats = {
+                    "anc_consensus_prob_a": float(ancient_result["consensus"]["team_a_prob"]),
+                    "anc_consensus_confidence": float(ancient_result["consensus"]["confidence"]),
+                    "anc_jyotish_prob_a": float(ancient_result["systems"][0]["team_a_prob"]),
+                    "anc_babylonian_prob_a": float(ancient_result["systems"][1]["team_a_prob"]),
+                    "anc_numerology_prob_a": float(ancient_result["systems"][2]["team_a_prob"]),
+                    "anc_pancha_bhuta_prob_a": float(ancient_result["systems"][3]["team_a_prob"]),
+                }
+            except Exception as anc_err:
+                logging.debug(f"Ancient engine fallback for {team_a} vs {team_b}: {anc_err}")
+                ancient_feats = {
+                    "anc_consensus_prob_a": 0.5, "anc_consensus_confidence": 0.0,
+                    "anc_jyotish_prob_a": 0.5, "anc_babylonian_prob_a": 0.5,
+                    "anc_numerology_prob_a": 0.5, "anc_pancha_bhuta_prob_a": 0.5,
+                }
 
-        # Merge all features — champion was trained on exactly these 17 keys
-        full_feats = {**feats, **ancient_feats}
+            # Merge all features — champion was trained on exactly these 17 keys
+            full_feats = {**feats, **ancient_feats}
 
-        # Prepare X vector matching exact canonical model feature order
-        if not trained_features or len(trained_features) != 17:
-            trained_features = list(CANONICAL_FEATURE_ORDER)
+            # Prepare X vector matching exact canonical model feature order
+            if not trained_features or len(trained_features) != 17:
+                trained_features = list(CANONICAL_FEATURE_ORDER)
 
-        x_vals = [float(full_feats.get(fn, 0.5 if fn.startswith('stat_') else 0.5)) for fn in trained_features]
+            x_vals = [float(full_feats.get(fn, 0.5 if fn.startswith('stat_') else 0.5)) for fn in trained_features]
 
-        X = np.array([x_vals])
-        try:
-            if hasattr(model, "predict_proba"):
-                prob = float(model.predict_proba(X)[0][1])
+            X = np.array([x_vals])
+            try:
+                if hasattr(model, "predict_proba"):
+                    prob = float(model.predict_proba(X)[0][1])
+                else:
+                    prob = float(model.predict(X)[0])
+                prob = max(0.01, min(0.99, prob))
+            except Exception as e:
+                logging.warning(f"Inference error for {match_id}: {e}. Using Elo probability.")
+                elo_diff = feats.get("stat_team_a_elo", 1500) - feats.get("stat_team_b_elo", 1500)
+                prob = float(1.0 / (1.0 + 10.0 ** (-elo_diff / 400.0)))
+
+            pred_winner = team_a if prob >= 0.5 else team_b
+            confidence = float(round(abs(prob - 0.5) * 2.0, 4))
+            
+            # Smart Confidence Engine logic
+            p_team1 = prob
+            if p_team1 >= 0.70 or p_team1 <= 0.30:
+                confidence_level = "HIGH"
+                recommendation = "✅ BET"
+                edge = round(abs(p_team1 - 0.5) * 100 - 15, 1)
+            elif p_team1 >= 0.60 or p_team1 <= 0.40:
+                confidence_level = "MEDIUM"
+                recommendation = "⚠ WATCH"
+                edge = round(abs(p_team1 - 0.5) * 100 - 10, 1)
             else:
-                prob = float(model.predict(X)[0])
-            prob = max(0.01, min(0.99, prob))
-        except Exception as e:
-            logging.warning(f"Inference error for {match_id}: {e}. Using Elo probability.")
-            elo_diff = feats.get("stat_team_a_elo", 1500) - feats.get("stat_team_b_elo", 1500)
-            prob = float(1.0 / (1.0 + 10.0 ** (-elo_diff / 400.0)))
+                confidence_level = "LOW"
+                recommendation = "❌ SKIP"
+                edge = 0.0
 
-        pred_winner = team_a if prob >= 0.5 else team_b
-        confidence = float(round(abs(prob - 0.5) * 2.0, 4))
+            # Compute explainable Top Factors for UI dashboard
+            factors = []
+            f_5 = round((feats.get("stat_team_a_win_pct_5", 0.5) - feats.get("stat_team_b_win_pct_5", 0.5)) * 40.0, 1)
+            factors.append({"name": "Last 5 Form", "impact": f"{f_5:+.1f}%" if f_5 != 0 else "0.0%"})
+            f_ven = round((feats.get("stat_venue_team_a_win_pct", 0.5) - feats.get("stat_venue_team_b_win_pct", 0.5)) * 30.0, 1)
+            factors.append({"name": "Venue Record", "impact": f"{f_ven:+.1f}%" if f_ven != 0 else "0.0%"})
+            f_elo = round((feats.get("stat_team_a_elo", 1500) - feats.get("stat_team_b_elo", 1500)) / 12.0, 1)
+            factors.append({"name": "Elo Rating", "impact": f"{f_elo:+.1f}%" if f_elo != 0 else "0.0%"})
+            f_h2h = round((feats.get("stat_h2h_team_a_win_pct", 0.5) - 0.5) * 35.0, 1)
+            factors.append({"name": "Head-to-Head", "impact": f"{f_h2h:+.1f}%" if f_h2h != 0 else "0.0%"})
+            
+            ancient_summary = f"Consensus Prob {round(ancient_feats.get('anc_consensus_prob_a', 0.5)*100, 1)}% · Jyotish {round(ancient_feats.get('anc_jyotish_prob_a', 0.5)*100, 1)}%"
+            pred_status = "PENDING"
 
-        # Compute explainable Top Factors for UI dashboard
-        # All deltas computed from real feature values — NO hardcoded fallback strings
-        factors = []
-        f_5 = round((feats.get("stat_team_a_win_pct_5", 0.5) - feats.get("stat_team_b_win_pct_5", 0.5)) * 40.0, 1)
-        factors.append({"name": "Last 5 Form", "impact": f"{f_5:+.1f}%" if f_5 != 0 else "0.0%"})
-        f_ven = round((feats.get("stat_venue_team_a_win_pct", 0.5) - feats.get("stat_venue_team_b_win_pct", 0.5)) * 30.0, 1)
-        factors.append({"name": "Venue Record", "impact": f"{f_ven:+.1f}%" if f_ven != 0 else "0.0%"})
-        f_elo = round((feats.get("stat_team_a_elo", 1500) - feats.get("stat_team_b_elo", 1500)) / 12.0, 1)
-        factors.append({"name": "Elo Rating", "impact": f"{f_elo:+.1f}%" if f_elo != 0 else "0.0%"})
-        f_h2h = round((feats.get("stat_h2h_team_a_win_pct", 0.5) - 0.5) * 35.0, 1)
-        factors.append({"name": "Head-to-Head", "impact": f"{f_h2h:+.1f}%" if f_h2h != 0 else "0.0%"})
-        f_anc = round((ancient_feats.get("anc_consensus_prob_a", 0.5) - 0.5) * 30.0, 1)
-        factors.append({"name": "Ancient Consensus", "impact": f"{f_anc:+.1f}%" if f_anc != 0 else "0.0%"})
-
-        ancient_summary = f"Consensus Prob {round(ancient_feats.get('anc_consensus_prob_a', 0.5)*100, 1)}% · Jyotish {round(ancient_feats.get('anc_jyotish_prob_a', 0.5)*100, 1)}%"
         pred_record = {
             "match_id": match_id,
             "date": date_str if isinstance(date_str, str) else date_str.isoformat(),
@@ -273,9 +316,9 @@ def run():
             "confidence": confidence,
             "model_version": champion_version,
             "actual_winner_id": None,
-            "prediction_status": "PENDING",
+            "prediction_status": pred_status,
             "prediction_timestamp": datetime.utcnow().isoformat(),
-            "top_driving_features": json.dumps({"factors": factors, "statistical": feats, "ancient": ancient_feats}),
+            "top_driving_features": json.dumps({"factors": factors, "statistical": feats, "ancient": ancient_feats, "recommendation": recommendation, "confidence_level": confidence_level, "expected_edge": edge}),
             "ancient_signals": json.dumps({"dominant": ancient_summary, **ancient_feats})
         }
 
