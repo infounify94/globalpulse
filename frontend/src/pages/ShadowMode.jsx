@@ -2,8 +2,8 @@ import DashboardLayout from '../layouts/DashboardLayout'
 import { useShadow, useShadowPredictions, useMetrics } from '../hooks/useApi'
 import { TableSkeleton } from '../components/ui/Skeleton'
 import { fmtDateTime } from '../utils/format'
-import { AlertTriangle } from 'lucide-react'
-
+import { AlertTriangle, Target, TrendingUp } from 'lucide-react'
+import { MetricCard } from '../components/ui/MetricCard'
 // ─────────────────────────────────────────────────────────────────────────────
 // Shadow Mode Page
 // Phase 10: champion vs challenger from shadow_predictions table
@@ -37,18 +37,18 @@ export default function ShadowModePage() {
       </div>
 
       {/* Phase 10: Champion vs Challenger — shadow_predictions table */}
-      <div className="card" style={{ marginBottom: 24 }}>
+      <div className="glass-card" style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div>
             <h3 style={{ fontSize: 14, fontWeight: 600 }}>Shadow Predictions — Champion vs Challenger</h3>
-            <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>from shadow_predictions table</p>
+            <p style={{ fontSize: 12, color: 'var(--color-muted)', marginTop: 2 }}>from shadow_predictions table</p>
           </div>
-          <span style={{ fontSize: 11, color: '#94a3b8' }}>{shadowPredList.length} rows</span>
+          <span style={{ fontSize: 11, color: 'var(--color-muted)' }}>{shadowPredList.length} rows</span>
         </div>
         {spl ? <TableSkeleton rows={6} /> : shadowPredList.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 0', color: '#94a3b8' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 0', color: 'var(--color-muted)' }}>
             <AlertTriangle size={24} color="#d97706" style={{ marginBottom: 8 }} />
-            <div style={{ fontWeight: 500, color: '#64748b' }}>No shadow predictions available</div>
+            <div style={{ fontWeight: 500, color: 'var(--color-muted)' }}>No shadow predictions available</div>
             <div style={{ fontSize: 12, marginTop: 4, textAlign: 'center', maxWidth: 400 }}>
               Shadow predictions are generated when the champion and challenger models
               both score a live match. Run the shadow prediction pipeline to populate this table.
@@ -72,7 +72,7 @@ export default function ShadowModePage() {
               {shadowPredList.map((s, i) => (
                 <tr key={i}>
                   <td style={{ fontWeight: 600, fontSize: 12 }}>{s.team_a} vs {s.team_b}</td>
-                  <td style={{ fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>{fmtDateTime(s.date)}</td>
+                  <td style={{ fontSize: 11, color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>{fmtDateTime(s.date)}</td>
                   <td style={{ color: '#3b5bdb', fontWeight: 600 }}>{s.predicted_winner}</td>
                   <td><strong>{s.probability != null ? `${(s.probability * 100).toFixed(1)}%` : '—'}</strong></td>
                   <td>
@@ -81,7 +81,7 @@ export default function ShadowModePage() {
                       : '—'}
                   </td>
                   <td style={{ fontWeight: s.actual_winner ? 600 : 400 }}>
-                    {s.actual_winner || <span style={{ color: '#94a3b8' }}>Pending</span>}
+                    {s.actual_winner || <span style={{ color: 'var(--color-muted)' }}>Pending</span>}
                   </td>
                   <td>
                     {/* Phase 5: outcome badge only when actual_winner is known */}
@@ -89,7 +89,7 @@ export default function ShadowModePage() {
                     {s.is_correct === false && <span className="badge badge-danger">✗ Wrong</span>}
                     {s.is_correct === null  && <span className="badge badge-warn">Pending</span>}
                   </td>
-                  <td style={{ fontSize: 11, color: '#64748b' }}>
+                  <td style={{ fontSize: 11, color: 'var(--color-muted)' }}>
                     {s.top_shap_features && s.top_shap_features.length > 0
                       ? s.top_shap_features.map(f => `${f.name}: ${typeof f.value === 'number' ? f.value.toFixed(3) : f.value}`).join(', ')
                       : '—'}
@@ -102,15 +102,15 @@ export default function ShadowModePage() {
       </div>
 
       {/* Phase 9: Verified Outcomes Audit Trail — prediction_store VERIFIED */}
-      <div className="card">
+      <div className="glass-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div>
             <h3 style={{ fontSize: 14, fontWeight: 600 }}>Verified Outcomes — Audit Trail</h3>
-            <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+            <p style={{ fontSize: 12, color: 'var(--color-muted)', marginTop: 2 }}>
               from prediction_store WHERE prediction_status='VERIFIED' AND actual_winner_id IS NOT NULL
             </p>
           </div>
-          <span style={{ fontSize: 11, color: '#94a3b8' }}>{predictions.length} rows (limit 200)</span>
+          <span style={{ fontSize: 11, color: 'var(--color-muted)' }}>{predictions.length} rows (limit 200)</span>
         </div>
         {sl ? <TableSkeleton rows={10} /> : (
           <table className="gp-table">
@@ -143,12 +143,12 @@ export default function ShadowModePage() {
                     {p.is_correct === false && <span className="badge badge-danger">✗ Wrong</span>}
                     {p.is_correct === null  && <span className="badge badge-warn">Pending</span>}
                   </td>
-                  <td style={{ color: '#94a3b8', fontSize: 11 }}>{fmtDateTime(p.prediction_timestamp)}</td>
+                  <td style={{ color: 'var(--color-muted)', fontSize: 11 }}>{fmtDateTime(p.prediction_timestamp)}</td>
                 </tr>
               ))}
               {predictions.length === 0 && (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', color: 'var(--color-muted)', padding: '40px 0' }}>
                     No verified predictions with confirmed outcomes available.
                   </td>
                 </tr>

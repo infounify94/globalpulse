@@ -15,10 +15,10 @@ export default function PredictionsPage() {
   return (
     <DashboardLayout title="Upcoming Predictions" subtitle="Matches scheduled in the future with active predictions">
       {isError && <WakeupBanner />}
-      <div className="card">
+      <div className="glass-card">
         <div style={{ marginBottom: 16 }}>
           <h3 style={{ fontSize: 14, fontWeight: 600 }}>Active Predictions</h3>
-          <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>Sourced from the Champion Model</p>
+          <p style={{ fontSize: 12, color: 'var(--color-muted)', marginTop: 2 }}>Sourced from the Champion Model</p>
         </div>
         {isLoading ? <TableSkeleton rows={10} /> : (
           <table className="gp-table">
@@ -47,11 +47,11 @@ export default function PredictionsPage() {
                 return (
                   <tr key={i}>
                     <td>
-                      <span style={{ fontWeight: 600 }}>{m.team_a || '?'}</span> <span style={{ color: '#94a3b8' }}>vs</span> <span style={{ fontWeight: 600 }}>{m.team_b || '?'}</span>
+                      <span style={{ fontWeight: 600 }}>{m.team_a || '?'}</span> <span style={{ color: 'var(--color-muted)' }}>vs</span> <span style={{ fontWeight: 600 }}>{m.team_b || '?'}</span>
                     </td>
-                    <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{fmtDateTime(m.date)}</td>
+                    <td style={{ color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>{fmtDateTime(m.date)}</td>
                     <td style={{ color: '#475569', fontWeight: 500 }}>{venueStr}</td>
-                    <td style={{ fontSize: 11, color: '#64748b' }}>{m.match_type || '—'}</td>
+                    <td style={{ fontSize: 11, color: 'var(--color-muted)' }}>{m.match_type || '—'}</td>
                     <td style={{ fontWeight: 600, color: '#3b5bdb' }}>{winner}</td>
                     <td><strong>{winProb != null ? `${(winProb * 100).toFixed(1)}%` : '—'}</strong></td>
                     <td>
@@ -61,10 +61,10 @@ export default function PredictionsPage() {
                         </span>
                       ) : '—'}
                     </td>
-                    <td style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace', maxWidth: 120, wordBreak: 'break-all' }}>
-                      {m.model_version ? m.model_version.slice(0, 20) + '…' : <span style={{ color: '#94a3b8' }}>Champion</span>}
+                    <td style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'monospace', maxWidth: 120, wordBreak: 'break-all' }}>
+                      {m.model_version ? m.model_version.slice(0, 20) + '…' : <span style={{ color: 'var(--color-muted)' }}>Champion</span>}
                     </td>
-                    <td style={{ color: '#64748b', fontSize: 11, maxWidth: 200, whiteSpace: 'normal' }}>
+                    <td style={{ color: 'var(--color-muted)', fontSize: 11, maxWidth: 200, whiteSpace: 'normal' }}>
                       {topFactors.length > 0
                         ? topFactors.map(f => `${f.name} (${f.impact})`).join(', ')
                         : '—'}
@@ -74,7 +74,7 @@ export default function PredictionsPage() {
               })}
               {(!Array.isArray(matches) || matches.length === 0) && (
                 <tr>
-                  <td colSpan={9} style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', color: 'var(--color-muted)', padding: '40px 0' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                       <AlertTriangle size={24} color="#d97706" />
                       <div>No upcoming matches found in the prediction store.</div>

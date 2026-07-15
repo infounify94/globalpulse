@@ -16,12 +16,12 @@ function NotImplemented({ feature, description, requirements }) {
       justifyContent: 'center', padding: '48px 32px', textAlign: 'center',
     }}>
       <AlertTriangle size={36} color="#d97706" style={{ marginBottom: 16 }} />
-      <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>{feature}</h3>
-      <p style={{ fontSize: 13, color: '#64748b', maxWidth: 480, lineHeight: 1.6, marginBottom: 20 }}>
+      <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)', marginBottom: 8 }}>{feature}</h3>
+      <p style={{ fontSize: 13, color: 'var(--color-muted)', maxWidth: 480, lineHeight: 1.6, marginBottom: 20 }}>
         {description}
       </p>
-      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '16px 24px', textAlign: 'left', maxWidth: 480, width: '100%' }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+      <div style={{ background: 'var(--color-surface)', border: '1px solid #e2e8f0', borderRadius: 8, padding: '16px 24px', textAlign: 'left', maxWidth: 480, width: '100%' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           Required for Implementation
         </div>
         {requirements.map((req, i) => (
@@ -31,7 +31,7 @@ function NotImplemented({ feature, description, requirements }) {
           </div>
         ))}
       </div>
-      <div style={{ marginTop: 16, fontSize: 11, color: '#94a3b8' }}>
+      <div style={{ marginTop: 16, fontSize: 11, color: 'var(--color-muted)' }}>
         No placeholder data is shown. This module will display real data once the backend is connected.
       </div>
     </div>
@@ -48,7 +48,7 @@ export function PatternMemoryPage() {
       title="Pattern Memory"
       subtitle="Nearest historical match patterns and embedding similarity"
     >
-      <div className="card">
+      <div className="glass-card">
         <NotImplemented
           feature="Pattern Memory Engine — Not Yet Implemented"
           description={`This module performs nearest-neighbour retrieval over historical match embeddings 
@@ -80,10 +80,10 @@ export function HistoricalReplayPage() {
       title="Historical Replay"
       subtitle="Completed and verified match predictions — from prediction_store VERIFIED"
     >
-      <div className="card">
+      <div className="glass-card">
         <div style={{ marginBottom: 16 }}>
           <h3 style={{ fontSize: 14, fontWeight: 600 }}>Completed Matches — Audit Trail</h3>
-          <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+          <p style={{ fontSize: 12, color: 'var(--color-muted)', marginTop: 2 }}>
             prediction_store WHERE prediction_status='VERIFIED' AND actual_winner_id IS NOT NULL AND date &lt;= NOW()
           </p>
         </div>
@@ -111,11 +111,11 @@ export function HistoricalReplayPage() {
                   <tr key={i}>
                     <td>
                       <span style={{ fontWeight: 600 }}>{m.team_a || '?'}</span>
-                      <span style={{ color: '#94a3b8' }}> vs </span>
+                      <span style={{ color: 'var(--color-muted)' }}> vs </span>
                       <span style={{ fontWeight: 600 }}>{m.team_b || '?'}</span>
                     </td>
                     {/* Phase 4: fmtDateTime always renders DD Mon YYYY, HH:MM UTC */}
-                    <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{fmtDateTime(m.date)}</td>
+                    <td style={{ color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>{fmtDateTime(m.date)}</td>
                     <td style={{ color: '#475569', fontWeight: 500 }}>{m.venue || '—'}</td>
                     <td style={{ fontWeight: 600, color: '#3b5bdb' }}>{predicted}</td>
                     <td>
@@ -123,7 +123,7 @@ export function HistoricalReplayPage() {
                         {m.probability != null ? `${(m.probability * 100).toFixed(1)}%` : '—'}
                       </strong>
                     </td>
-                    <td style={{ fontWeight: 600, color: '#0f172a' }}>{actual}</td>
+                    <td style={{ fontWeight: 600, color: 'var(--color-text)' }}>{actual}</td>
                     <td>
                       {/* Phase 5: Result badge only when actual_winner is confirmed */}
                       {isCorrect === true  && <span className="badge badge-success">✓ Correct</span>}
@@ -135,7 +135,7 @@ export function HistoricalReplayPage() {
               })}
               {(!Array.isArray(history) || history.length === 0) && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0' }}>
+                  <td colSpan={7} style={{ textAlign: 'center', color: 'var(--color-muted)', padding: '40px 0' }}>
                     No verified completed matches found.
                   </td>
                 </tr>
@@ -159,7 +159,7 @@ export function ResearchPage() {
       title="Research"
       subtitle="Deep-dive analysis: Calibration, SHAP, ROC, Confusion Matrix — Phase 14"
     >
-      <div className="card">
+      <div className="glass-card">
         <NotImplemented
           feature="Research & Analysis Hub — Not Yet Implemented"
           description={`This module provides statistical deep-dive analysis of model performance.
@@ -183,7 +183,7 @@ export function ResearchPage() {
 export function AlertsPage() {
   return (
     <DashboardLayout title="Alerts" subtitle="Prediction alerts and notification settings">
-      <div className="card">
+      <div className="glass-card">
         <NotImplemented
           feature="Alerts System — Not Yet Implemented"
           description="Real-time alerts for model drift, accuracy degradation, and prediction confidence drops. Requires alerting backend connected to model monitoring metrics."
@@ -202,20 +202,20 @@ export function SettingsPage() {
   const apiUrl = import.meta.env.VITE_SUPABASE_URL || 'Not configured'
   return (
     <DashboardLayout title="Settings" subtitle="System configuration and API access">
-      <div className="card">
+      <div className="glass-card">
         <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Current Configuration</h3>
         <table className="gp-table">
           <tbody>
             <tr>
-              <td style={{ color: '#64748b', width: 200 }}>Supabase URL</td>
+              <td style={{ color: 'var(--color-muted)', width: 200 }}>Supabase URL</td>
               <td style={{ fontFamily: 'monospace', fontSize: 12, color: '#3b5bdb' }}>{apiUrl}</td>
             </tr>
             <tr>
-              <td style={{ color: '#64748b' }}>Frontend Version</td>
+              <td style={{ color: 'var(--color-muted)' }}>Frontend Version</td>
               <td style={{ fontWeight: 600 }}>GlobalPulse Production (React + Vite)</td>
             </tr>
             <tr>
-              <td style={{ color: '#64748b' }}>Data Source</td>
+              <td style={{ color: 'var(--color-muted)' }}>Data Source</td>
               <td style={{ fontWeight: 600, color: '#16a34a' }}>Supabase (Production)</td>
             </tr>
           </tbody>

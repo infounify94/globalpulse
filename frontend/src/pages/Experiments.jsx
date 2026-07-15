@@ -20,10 +20,10 @@ export default function ExperimentsPage() {
       title="Experiments"
       subtitle="All training runs, hyperparameters, and evaluation metrics — from experiment_registry"
     >
-      <div className="card">
+      <div className="glass-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ fontSize: 14, fontWeight: 600 }}>Experiment Registry</h3>
-          <span style={{ fontSize: 11, color: '#94a3b8' }}>{experiments.length} experiments</span>
+          <span style={{ fontSize: 11, color: 'var(--color-muted)' }}>{experiments.length} experiments</span>
         </div>
         {isLoading ? <TableSkeleton rows={10} /> : (
           <div style={{ overflowX: 'auto' }}>
@@ -46,7 +46,7 @@ export default function ExperimentsPage() {
               <tbody>
                 {experiments.map((e, i) => (
                   <tr key={i}>
-                    <td style={{ fontSize: 11, color: '#64748b', fontFamily: 'monospace', maxWidth: 160, wordBreak: 'break-all' }}>
+                    <td style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'monospace', maxWidth: 160, wordBreak: 'break-all' }}>
                       {e.id || '—'}
                       {e.is_champion && (
                         <span className="badge badge-success" style={{ marginLeft: 6, fontSize: 9 }}>Champion</span>
@@ -58,8 +58,8 @@ export default function ExperimentsPage() {
                         : <span className="badge badge-warn">Running</span>}
                     </td>
                     <td style={{ fontWeight: 600 }}>{e.algorithm}</td>
-                    <td style={{ fontSize: 12, color: '#64748b' }}>{e.dataset_version}</td>
-                    <td style={{ fontSize: 12, color: '#64748b' }}>{e.feature_version}</td>
+                    <td style={{ fontSize: 12, color: 'var(--color-muted)' }}>{e.dataset_version}</td>
+                    <td style={{ fontSize: 12, color: 'var(--color-muted)' }}>{e.feature_version}</td>
                     <td style={{ color: '#16a34a', fontWeight: 700 }}>
                       {e.accuracy_mean != null ? `${(e.accuracy_mean * 100).toFixed(2)}%` : '—'}
                     </td>
@@ -71,14 +71,14 @@ export default function ExperimentsPage() {
                     <td style={{ fontSize: 12, color: '#475569', whiteSpace: 'nowrap' }}>
                       {e.duration || '—'}
                     </td>
-                    <td style={{ fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                    <td style={{ fontSize: 11, color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
                       {fmtDateTime(e.start_time)}
                     </td>
                   </tr>
                 ))}
                 {experiments.length === 0 && (
                   <tr>
-                    <td colSpan={11} style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0' }}>
+                    <td colSpan={11} style={{ textAlign: 'center', color: 'var(--color-muted)', padding: '40px 0' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                         <AlertTriangle size={24} color="#d97706" />
                         <div>No experiments found in experiment_registry.</div>

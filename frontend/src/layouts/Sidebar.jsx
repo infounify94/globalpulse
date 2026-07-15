@@ -25,23 +25,24 @@ export default function Sidebar() {
 
   return (
     <aside style={{
-      width: 220, minHeight: '100vh', background: '#fff',
-      borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column',
+      width: 220, minHeight: '100vh', background: 'var(--color-surface)',
+      borderRight: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column',
       padding: '0 12px', position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 100,
-      overflow: 'hidden'
+      overflow: 'hidden', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)'
     }}>
       {/* Logo */}
-      <div style={{ padding: '20px 8px 16px', borderBottom: '1px solid #f1f5f9' }}>
+      <div style={{ padding: '20px 8px 16px', borderBottom: '1px solid var(--color-border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 36, height: 36, borderRadius: 10,
-            background: 'linear-gradient(135deg, #3b5bdb, #7c3aed)',
+            background: 'linear-gradient(135deg, var(--color-primary), #7c3aed)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'white', fontWeight: 800, fontSize: 15
+            color: 'white', fontWeight: 800, fontSize: 15,
+            boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)'
           }}>GP</div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>GlobalPulse</div>
-            <div style={{ fontSize: 11, color: '#94a3b8' }}>Prediction Intelligence</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-text)', letterSpacing: '0.02em' }}>GlobalPulse</div>
+            <div style={{ fontSize: 11, color: 'var(--color-muted)' }}>Prediction Intelligence</div>
           </div>
         </div>
       </div>
@@ -63,23 +64,23 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div style={{ padding: '12px 8px', borderTop: '1px solid #f1f5f9' }}>
-        <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 12px' }}>
+      <div style={{ padding: '12px 8px', borderTop: '1px solid var(--color-border)' }}>
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '10px 12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <div style={{
               width: 28, height: 28, borderRadius: 8,
-              background: 'linear-gradient(135deg, #3b5bdb, #7c3aed)',
+              background: 'linear-gradient(135deg, var(--color-primary), #7c3aed)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'white', fontSize: 11, fontWeight: 700
             }}>GP</div>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>GlobalPulse AI</div>
-              <div style={{ fontSize: 10, color: '#94a3b8' }}>Champion Model</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>GlobalPulse AI</div>
+              <div style={{ fontSize: 10, color: 'var(--color-muted)' }}>Champion Model</div>
             </div>
           </div>
-          <div style={{ fontSize: 11, color: '#64748b', display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <div>Model: <span style={{ color: '#0f172a', fontWeight: 500 }}>{status?.champion_model_version || '—'}</span></div>
-            <div>Dataset: <span style={{ color: '#0f172a', fontWeight: 500 }}>{status?.dataset_version || '—'}</span></div>
+          <div style={{ fontSize: 11, color: 'var(--color-muted)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div>Model: <span style={{ color: 'var(--color-text)', fontWeight: 500 }}>{status?.champion_model_version || '—'}</span></div>
+            <div>Dataset: <span style={{ color: 'var(--color-text)', fontWeight: 500 }}>{status?.dataset_version || '—'}</span></div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
             <span className={`status-dot ${isOnline ? 'status-online' : 'status-offline'}`} />

@@ -34,12 +34,12 @@ export default function ModelsPage() {
 
       {/* Phase 6: Champion detail card */}
       {champion && (
-        <div className="card" style={{ marginBottom: 24, borderLeft: '3px solid #16a34a' }}>
+        <div className="glass-card" style={{ marginBottom: 24, borderLeft: '3px solid #16a34a' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <span className="badge badge-success" style={{ fontSize: 12 }}>🏆 Current Champion</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{champion.algorithm}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)' }}>{champion.algorithm}</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '8px 24px' }}>
                 {[
@@ -49,8 +49,8 @@ export default function ModelsPage() {
                   { label: 'Training Date',    val: fmtDateTime(champion.training_date) },
                 ].map(({ label, val }) => (
                   <div key={label}>
-                    <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500 }}>{label}</div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a', fontFamily: label.includes('Version') || label === 'Checksum' ? 'monospace' : 'inherit', wordBreak: 'break-all' }}>{val}</div>
+                    <div style={{ fontSize: 10, color: 'var(--color-muted)', fontWeight: 500 }}>{label}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)', fontFamily: label.includes('Version') || label === 'Checksum' ? 'monospace' : 'inherit', wordBreak: 'break-all' }}>{val}</div>
                   </div>
                 ))}
               </div>
@@ -63,7 +63,7 @@ export default function ModelsPage() {
                 { label: 'Log Loss',   val: champion.log_loss      != null ? champion.log_loss.toFixed(4)   : '—', color: '#0891b2' },
               ].map(({ label, val, color }) => (
                 <div key={label} style={{ textAlign: 'center', minWidth: 90, padding: '0 8px' }}>
-                  <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 4 }}>{label}</div>
+                  <div style={{ fontSize: 10, color: 'var(--color-muted)', marginBottom: 4 }}>{label}</div>
                   <div style={{ fontSize: 20, fontWeight: 700, color }}>{val}</div>
                 </div>
               ))}
@@ -73,10 +73,10 @@ export default function ModelsPage() {
       )}
 
       {/* Full Leaderboard */}
-      <div className="card">
+      <div className="glass-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ fontSize: 14, fontWeight: 600 }}>Full Leaderboard</h3>
-          <span style={{ fontSize: 11, color: '#94a3b8' }}>
+          <span style={{ fontSize: 11, color: 'var(--color-muted)' }}>
             {champions.length} champion · {challengers.length} challengers · {modelList.length} total
           </span>
         </div>
@@ -105,11 +105,11 @@ export default function ModelsPage() {
                         ? <span className="badge badge-success">🏆 Champion</span>
                         : <span className="badge badge-info">Challenger</span>}
                     </td>
-                    <td style={{ fontFamily: 'monospace', fontSize: 10, color: '#64748b', maxWidth: 140, wordBreak: 'break-all' }}>
+                    <td style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--color-muted)', maxWidth: 140, wordBreak: 'break-all' }}>
                       {m.model_version ? m.model_version.slice(0, 22) + (m.model_version.length > 22 ? '…' : '') : '—'}
                     </td>
                     <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{m.algorithm || '—'}</td>
-                    <td style={{ color: '#64748b', fontSize: 12 }}>{m.dataset_version || '—'}</td>
+                    <td style={{ color: 'var(--color-muted)', fontSize: 12 }}>{m.dataset_version || '—'}</td>
                     <td style={{ color: '#16a34a', fontWeight: 700 }}>
                       {m.accuracy_mean != null ? `${(m.accuracy_mean * 100).toFixed(2)}%` : '—'}
                     </td>
@@ -118,17 +118,17 @@ export default function ModelsPage() {
                     <td style={{ color: '#3b5bdb', fontWeight: 600 }}>
                       {m.auc_roc != null ? m.auc_roc.toFixed(4) : '—'}
                     </td>
-                    <td style={{ fontFamily: 'monospace', fontSize: 10, color: '#94a3b8' }}>
+                    <td style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--color-muted)' }}>
                       {m.checksum ? m.checksum.slice(0, 16) + '…' : '—'}
                     </td>
-                    <td style={{ fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                    <td style={{ fontSize: 11, color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
                       {fmtDateTime(m.training_date)}
                     </td>
                   </tr>
                 ))}
                 {modelList.length === 0 && (
                   <tr>
-                    <td colSpan={10} style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0' }}>
+                    <td colSpan={10} style={{ textAlign: 'center', color: 'var(--color-muted)', padding: '40px 0' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                         <AlertTriangle size={24} color="#d97706" />
                         <div>No models found in registry.</div>

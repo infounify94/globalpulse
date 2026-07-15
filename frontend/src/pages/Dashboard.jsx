@@ -1,6 +1,7 @@
 import DashboardLayout from '../layouts/DashboardLayout'
 import { useMetrics, useShadow, useMatches, useModels } from '../hooks/useApi'
 import { CardSkeleton, TableSkeleton } from '../components/ui/Skeleton'
+import { MetricCard } from '../components/ui/MetricCard'
 import { WakeupBanner } from '../components/ui/Banners'
 import { fmtDateTime } from '../utils/format'
 import {
@@ -8,27 +9,6 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Legend,
 } from 'recharts'
 import { TrendingUp, Target, Cpu, Activity, CheckCircle, AlertTriangle } from 'lucide-react'
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Metric Card — values sourced exclusively from backend (dashboard_summary view)
-// Phase 15: No hardcoded statistics, no frontend calculations
-// ─────────────────────────────────────────────────────────────────────────────
-function MetricCard({ label, value, sub, icon: Icon, color = '#3b5bdb', loading }) {
-  if (loading) return <CardSkeleton />
-  return (
-    <div className="card" style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-        <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500 }}>{label}</span>
-        {Icon && <div style={{
-          width: 30, height: 30, borderRadius: 8, display: 'flex', alignItems: 'center',
-          justifyContent: 'center', background: `${color}15`
-        }}><Icon size={14} color={color} /></div>}
-      </div>
-      <div style={{ fontSize: 26, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>{value ?? '—'}</div>
-      {sub && <div style={{ fontSize: 11, color: '#94a3b8' }}>{sub}</div>}
-    </div>
-  )
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Confidence Distribution Donut — from dashboard_summary.confidence buckets
@@ -45,7 +25,7 @@ function ConfidenceDonut({ data }) {
   const total = segments.reduce((s, x) => s + x.value, 0)
   if (total === 0) {
     return (
-      <div style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', padding: 24 }}>
+      <div style={{ color: 'var(--color-muted)', fontSize: 12, textAlign: 'center', padding: 24 }}>
         Confidence distribution not yet computed.<br />
         <span style={{ fontSize: 11 }}>Run the training pipeline to generate this data.</span>
       </div>
@@ -67,13 +47,13 @@ function ConfidenceDonut({ data }) {
         {segments.map((seg, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <div style={{ width: 10, height: 10, borderRadius: 3, background: CONF_COLORS[i] }} />
-            <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{seg.name}</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
+            <span style={{ fontSize: 12, color: 'var(--color-muted)', flex: 1 }}>{seg.name}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>
               {total ? `${((seg.value / total) * 100).toFixed(1)}%` : '—'}
             </span>
           </div>
         ))}
-        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Total: {total} predictions</div>
+        <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 6 }}>Total: {total} predictions</div>
       </div>
     </div>
   )
@@ -96,23 +76,23 @@ function MatchRow({ match }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'flex-start', gap: 12,
-      padding: '12px 0', borderBottom: '1px solid #f1f5f9'
+      padding: '12px 0', borderBottom: '1px solid var(--color-border)'
     }}>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
-          {teamA} <span style={{ color: '#94a3b8', fontWeight: 400 }}>vs</span> {teamB}
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>
+          {teamA} <span style={{ color: 'var(--color-muted)', fontWeight: 400 }}>vs</span> {teamB}
         </div>
-        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+        <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 2 }}>
           {venueStr && <strong style={{ color: '#475569' }}>{venueStr} · </strong>}
           {match.match_type || 'Cricket'} · {fmtDateTime(match.date)}
         </div>
         {/* Phase 12: Only show real factors from DB — never fabricated */}
         {topFactors && topFactors.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
-            <span style={{ fontSize: 10, fontWeight: 600, color: '#64748b', marginRight: 2 }}>Top Factors:</span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-muted)', marginRight: 2 }}>Top Factors:</span>
             {topFactors.slice(0, 4).map((f, i) => (
               <span key={i} style={{
-                fontSize: 10, background: '#f8fafc', border: '1px solid #e2e8f0',
+                fontSize: 10, background: 'var(--color-surface)', border: '1px solid #e2e8f0',
                 padding: '1px 5px', borderRadius: 4, color: '#334155'
               }}>
                 ✓ {f.name} <strong style={{ color: '#16a34a' }}>({f.impact})</strong>
@@ -216,17 +196,17 @@ export default function DashboardPage() {
       {/* Charts Row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16, marginBottom: 24 }}>
         {/* Model Performance Chart — real model_registry data */}
-        <div className="card">
+        <div className="glass-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h3 style={{ fontSize: 14, fontWeight: 600 }}>Model Performance History</h3>
-            <span style={{ fontSize: 11, color: '#94a3b8' }}>from model_registry</span>
+            <span style={{ fontSize: 11, color: 'var(--color-muted)' }}>from model_registry</span>
           </div>
           {modl ? <TableSkeleton rows={5} /> : modelChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={modelChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} domain={[40, 100]} unit="%" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--color-muted)' }} />
+                <YAxis tick={{ fontSize: 11, fill: 'var(--color-muted)' }} domain={[40, 100]} unit="%" />
                 <Tooltip formatter={(v, n) => [`${v}%`, n]} />
                 <Legend iconType="circle" iconSize={8} />
                 <Line type="monotone" dataKey="Accuracy" stroke="#3b5bdb" strokeWidth={2} dot={{ r: 3 }} connectNulls />
@@ -234,19 +214,19 @@ export default function DashboardPage() {
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0', fontSize: 13 }}>
+            <div style={{ textAlign: 'center', color: 'var(--color-muted)', padding: '40px 0', fontSize: 13 }}>
               No model history yet. Run the training pipeline.
             </div>
           )}
         </div>
 
         {/* Confidence Distribution — from dashboard_summary */}
-        <div className="card">
+        <div className="glass-card">
           <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Confidence Distribution</h3>
           <ConfidenceDonut data={metrics} />
           {avgConf != null && (
-            <div style={{ textAlign: 'center', marginTop: 12, fontSize: 12, color: '#64748b' }}>
-              Avg Confidence: <strong style={{ color: '#0f172a' }}>{(avgConf * 100).toFixed(2)}%</strong>
+            <div style={{ textAlign: 'center', marginTop: 12, fontSize: 12, color: 'var(--color-muted)' }}>
+              Avg Confidence: <strong style={{ color: 'var(--color-text)' }}>{(avgConf * 100).toFixed(2)}%</strong>
             </div>
           )}
         </div>
@@ -255,7 +235,7 @@ export default function DashboardPage() {
       {/* Bottom Row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
         {/* Upcoming Matches — ONLY real future PENDING from DB */}
-        <div className="card">
+        <div className="glass-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <h3 style={{ fontSize: 14, fontWeight: 600 }}>Upcoming Matches</h3>
             <a href="/predictions" style={{ fontSize: 12, color: '#3b5bdb', textDecoration: 'none' }}>View all →</a>
@@ -279,16 +259,16 @@ export default function DashboardPage() {
               {matches.map(r => (
                 <tr key={r.id}>
                   <td>
-                    <div style={{ fontWeight: 500, color: '#0f172a' }}>{r.team1} vs {r.team2}</div>
-                    <div style={{ fontSize: 11, color: '#94a3b8' }}>{r.venue}</div>
+                    <div style={{ fontWeight: 500, color: 'var(--color-text)' }}>{r.team1} vs {r.team2}</div>
+                    <div style={{ fontSize: 11, color: 'var(--color-muted)' }}>{r.venue}</div>
                   </td>
-                  <td style={{ fontSize: 12, color: '#64748b' }}>{fmtDateTime(r.match_date)}</td>
+                  <td style={{ fontSize: 12, color: 'var(--color-muted)' }}>{fmtDateTime(r.match_date)}</td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 40, height: 4, background: '#f1f5f9', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ width: 40, height: 4, background: 'var(--color-border)', borderRadius: 2, overflow: 'hidden' }}>
                         <div style={{ height: '100%', background: '#3b5bdb', width: `${Math.round(r.probability * 100)}%` }} />
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: '#0f172a' }}>{Math.round(r.probability * 100)}%</span>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text)' }}>{Math.round(r.probability * 100)}%</span>
                     </div>
                   </td>
                   <td>
@@ -301,19 +281,19 @@ export default function DashboardPage() {
                     </span>
                   </td>
                   <td>
-                    <span style={{ fontWeight: 600, fontSize: 12, color: r.recommendation === '✅ BET' ? '#166534' : '#64748b' }}>
+                    <span style={{ fontWeight: 600, fontSize: 12, color: r.recommendation === '✅ BET' ? '#166534' : 'var(--color-muted)' }}>
                       {r.recommendation || "N/A"}
                     </span>
                   </td>
-                  <td style={{ fontSize: 12, color: '#0f172a' }}>{r.actual_winner || '—'}</td>
+                  <td style={{ fontSize: 12, color: 'var(--color-text)' }}>{r.actual_winner || '—'}</td>
                   <td>
                     {r.actual_winner ? (
                       r.actual_winner === r.predicted_winner
                         ? <CheckCircle size={14} color="#10b981" />
                         : <AlertTriangle size={14} color="#ef4444" />
-                    ) : <span style={{ fontSize: 12, color: '#94a3b8' }}>Pending</span>}
+                    ) : <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>Pending</span>}
                   </td>
-                  <td style={{ fontSize: 10, color: '#64748b', maxWidth: 150 }}>
+                  <td style={{ fontSize: 10, color: 'var(--color-muted)', maxWidth: 150 }}>
                     {(r.reasons || []).join(", ") || "No reasons generated."}
                   </td>
                 </tr>
@@ -321,7 +301,7 @@ export default function DashboardPage() {
             </tbody>
           </table>
             ) : (
-            <div style={{ color: '#94a3b8', fontSize: 12, padding: '20px 0', textAlign: 'center' }}>
+            <div style={{ color: 'var(--color-muted)', fontSize: 12, padding: '20px 0', textAlign: 'center' }}>
               <AlertTriangle size={20} style={{ marginBottom: 8, color: '#d97706' }} />
               <div>No upcoming predictions in database.</div>
               <div style={{ fontSize: 11, marginTop: 4 }}>Run <code>run_predict.py</code> via GitHub Actions to generate predictions.</div>
@@ -330,23 +310,23 @@ export default function DashboardPage() {
         </div>
 
         {/* Model Status — from model_registry */}
-        <div className="card">
+        <div className="glass-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <h3 style={{ fontSize: 14, fontWeight: 600 }}>Model Status</h3>
             <a href="/models" style={{ fontSize: 12, color: '#3b5bdb', textDecoration: 'none' }}>View all →</a>
           </div>
           {modl ? <TableSkeleton rows={4} /> : (
             modelList.slice(0, 4).map((m, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{m.algorithm}</div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{m.algorithm}</div>
+                  <div style={{ fontSize: 11, color: 'var(--color-muted)' }}>
                     {m.dataset_version || '—'} · {m.training_date ? new Date(m.training_date).getFullYear() : '—'}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   {m.is_champion && <span className="badge badge-success" style={{ marginBottom: 4 }}>Champion</span>}
-                  <div style={{ fontSize: 12, color: '#64748b' }}>
+                  <div style={{ fontSize: 12, color: 'var(--color-muted)' }}>
                     Acc: <strong>{m.accuracy_mean != null ? `${(m.accuracy_mean * 100).toFixed(1)}%` : '—'}</strong>
                   </div>
                 </div>
@@ -356,7 +336,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Recent Outcomes — Phase 9: prediction_store VERIFIED, real data */}
-        <div className="card">
+        <div className="glass-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <h3 style={{ fontSize: 14, fontWeight: 600 }}>Recent Outcomes</h3>
             <a href="/shadow" style={{ fontSize: 12, color: '#3b5bdb', textDecoration: 'none' }}>View all →</a>
@@ -371,15 +351,15 @@ export default function DashboardPage() {
               const probVal = p.probability != null ? `${(p.probability * 100).toFixed(0)}%` : null
 
               return (
-                <div key={i} style={{ padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
+                <div key={i} style={{ padding: '10px 0', borderBottom: '1px solid var(--color-border)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>{matchTitle}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>{matchTitle}</div>
                       <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
                         Predicted: <strong style={{ color: '#3b5bdb' }}>{predWinner}</strong>
                         {actualWinner && <span> | Actual: <strong>{actualWinner}</strong></span>}
                       </div>
-                      <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                      <div style={{ fontSize: 10, color: 'var(--color-muted)', marginTop: 2 }}>
                         {probVal && <span>Prob: <strong>{probVal}</strong> · </span>}
                         Model: <strong>{p.model_version ? p.model_version.slice(0, 20) + '…' : 'Champion'}</strong>
                         {p.prediction_timestamp && <span> · {fmtDateTime(p.prediction_timestamp)}</span>}
@@ -396,7 +376,7 @@ export default function DashboardPage() {
             })
           )}
           {!sl && recent.length === 0 && (
-            <div style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>
+            <div style={{ color: 'var(--color-muted)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>
               No verified outcomes yet.
             </div>
           )}
@@ -414,9 +394,9 @@ export default function DashboardPage() {
           { label: 'Total Predictions',     val: metrics?.live_predictions != null ? metrics.live_predictions.toLocaleString() : '—' },
           { label: 'Last Updated',          val: metrics?.last_update ? fmtDateTime(metrics.last_update) : '—' },
         ].map(({ label, val }) => (
-          <div key={label} className="card" style={{ padding: '12px 16px' }}>
-            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>{label}</div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', wordBreak: 'break-all' }}>{val}</div>
+          <div key={label} className="glass-card" style={{ padding: '12px 16px' }}>
+            <div style={{ fontSize: 11, color: 'var(--color-muted)', marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', wordBreak: 'break-all' }}>{val}</div>
           </div>
         ))}
       </div>
